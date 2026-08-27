@@ -1,27 +1,64 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { LICENSE_REGISTRY } from '../data/mockData';
 
 export default function CompanyRegistration({ setView, setCompanyUser }) {
   const [licenseNum, setLicenseNum] = useState('');
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
-  const handleVerify = () => {
-    const trimmedId = licenseNum.trim().toUpperCase();
-    const registryEntry = LICENSE_REGISTRY[trimmedId];
+ const handleVerify = async () => {
+  const trimmedId = licenseNum.trim().toUpperCase();
 
-    if (!registryEntry) {
+  if (!trimmedId) {
+    setVerificationResult('not_found');
+    setRecord(null);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/verify/license/${encodeURIComponent(trimmedId)}`
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.verified) {
       setVerificationResult('not_found');
       setRecord(null);
-    } else if (registryEntry.status !== 'ACTIVE') {
-      setVerificationResult('expired');
-      setRecord(registryEntry);
-    } else {
-      setVerificationResult('success');
-      setRecord(registryEntry);
+      return;
     }
-  };
+
+    // Convert PostgreSQL snake_case fields
+    // into the format the existing UI expects.
+    const registryEntry = {
+      ...result.data,
+      licenseNumber: result.data.license_number,
+      companyName: result.data.company_name,
+      status: result.data.license_status
+    };
+
+const status = String(registryEntry.status || '').trim().toUpperCase();
+
+if (status === 'ACTIVE') {
+  setVerificationResult('success');
+  setRecord({
+    ...registryEntry,
+    status: 'ACTIVE'
+  });
+} else {
+  setVerificationResult('expired');
+  setRecord({
+    ...registryEntry,
+    status
+  });
+}
+  } catch (error) {
+    console.error('License verification error:', error);
+
+    setVerificationResult('not_found');
+    setRecord(null);
+  }
+};
 
   const handleContinue = () => {
     if (record && verificationResult === 'success') {
@@ -151,8 +188,7 @@ export default function CompanyRegistration({ setView, setCompanyUser }) {
             <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
               <ShieldCheck size={16} style={{ color: "var(--color-primary-dark)", flexShrink: 0, marginTop: "2px" }} />
               <div>
-                <strong>Prototype Notice:</strong> License verification checks query an in-memory synthetic database representing future integration with the FSSAI / regulatory portals.
-              </div>
+<strong>Verification Notice:</strong> License verification checks are performed against the HoneyChain PostgreSQL verification registry.              </div>
             </div>
           </div>
         </div>

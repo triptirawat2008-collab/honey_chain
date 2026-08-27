@@ -1,27 +1,54 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { BEEKEEPER_REGISTRY } from '../data/mockData';
 
 export default function BeekeeperRegistration({ setView, setBeekeeperUser }) {
   const [beekeeperId, setBeekeeperId] = useState('');
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
-  const handleVerify = () => {
-    const trimmedId = beekeeperId.trim().toUpperCase();
-    const registryEntry = BEEKEEPER_REGISTRY[trimmedId];
+const handleVerify = async () => {
+  const trimmedId = beekeeperId.trim().toUpperCase();
 
-    if (!registryEntry) {
+  if (!trimmedId) {
+    setVerificationResult('not_found');
+    setRecord(null);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/verify/beekeeper/${encodeURIComponent(trimmedId)}`
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.verified) {
       setVerificationResult('not_found');
       setRecord(null);
-    } else if (registryEntry.status !== 'ACTIVE') {
+      return;
+    }
+
+const registryEntry = {
+  ...result.data,
+  beekeeperId: result.data.beekeeper_id,
+  registeredName: result.data.registered_name
+};
+
+if (registryEntry.status !== 'ACTIVE') {
       setVerificationResult('expired');
       setRecord(registryEntry);
     } else {
       setVerificationResult('success');
       setRecord(registryEntry);
     }
-  };
+
+  } catch (error) {
+    console.error('Beekeeper verification error:', error);
+
+    setVerificationResult('not_found');
+    setRecord(null);
+  }
+};
 
   const handleContinue = () => {
     if (record && verificationResult === 'success') {
@@ -145,8 +172,7 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser }) {
             <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
               <ShieldCheck size={16} style={{ color: "var(--color-primary-dark)", flexShrink: 0, marginTop: "2px" }} />
               <div>
-                <strong>Prototype Notice:</strong> Beekeeper identity checks query an in-memory synthetic database representing future integration with the National Bee Board / Madhukranti registry.
-              </div>
+<strong>Verification Notice:</strong> Beekeeper identity checks are performed against the HoneyChain PostgreSQL verification registry.              </div>
             </div>
           </div>
         </div>
