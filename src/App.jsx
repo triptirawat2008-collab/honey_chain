@@ -6,8 +6,11 @@ import CompanyRegistration from './pages/CompanyRegistration';
 import BeekeeperDashboard from './pages/BeekeeperDashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
 import ConsumerTraceability from './pages/ConsumerTraceability';
+import TopDemoBar from './components/TopDemoBar';
 
 import {
+  BEEKEEPER_REGISTRY,
+  LICENSE_REGISTRY,
   INITIAL_HARVESTS,
   INITIAL_BATCHES,
   INITIAL_APIARIES,
@@ -19,12 +22,18 @@ import {
 function App() {
   const [view, setView] = useState('landing'); // landing, role-selection, beekeeper-verify, company-verify, beekeeper-dash, company-dash, consumer-trace
   
+  // Dual Language State: 'hi' (Hindi Primary) or 'en' (English Primary)
+  const [primaryLang, setPrimaryLang] = useState('hi');
+
+  // Low Connectivity / 2G Offline Simulation State
+  const [isOffline, setIsOffline] = useState(false);
+
   // Authenticated/Verified Users
-  const [beekeeperUser, setBeekeeperUser] = useState(null);
-  const [companyUser, setCompanyUser] = useState(null);
+  const [beekeeperUser, setBeekeeperUser] = useState(BEEKEEPER_REGISTRY['BK-SYN-00001']);
+  const [companyUser, setCompanyUser] = useState(LICENSE_REGISTRY['LIC-SYN-00001']);
 
   // Active lookup tracking ID for the consumer view
-  const [activeTraceId, setActiveTraceId] = useState(null);
+  const [activeTraceId, setActiveTraceId] = useState('BT-LIC001-20260825-01');
 
   // Core State lists initialized with mock data
   const [harvests, setHarvests] = useState(INITIAL_HARVESTS);
@@ -35,32 +44,51 @@ function App() {
   const [history, setHistory] = useState(INITIAL_HISTORY);
 
   return (
-    <>
+    <div className="honey-app-wrapper">
+      {/* Top Persistent SIH Demo Navigation Bar */}
+      <TopDemoBar 
+        view={view}
+        setView={setView}
+        setBeekeeperUser={setBeekeeperUser}
+        setCompanyUser={setCompanyUser}
+        setActiveTraceId={setActiveTraceId}
+        isOffline={isOffline}
+        setIsOffline={setIsOffline}
+        primaryLang={primaryLang}
+        setPrimaryLang={setPrimaryLang}
+        BEEKEEPER_REGISTRY={BEEKEEPER_REGISTRY}
+        LICENSE_REGISTRY={LICENSE_REGISTRY}
+      />
+
       {/* State-based Navigation Router */}
       {view === 'landing' && (
         <LandingPage 
           setView={setView} 
-          setActiveTraceId={setActiveTraceId} 
+          setActiveTraceId={setActiveTraceId}
+          primaryLang={primaryLang}
         />
       )}
 
       {view === 'role-selection' && (
         <RoleSelection 
-          setView={setView} 
+          setView={setView}
+          primaryLang={primaryLang}
         />
       )}
 
       {view === 'beekeeper-verify' && (
         <BeekeeperRegistration 
           setView={setView} 
-          setBeekeeperUser={setBeekeeperUser} 
+          setBeekeeperUser={setBeekeeperUser}
+          primaryLang={primaryLang}
         />
       )}
 
       {view === 'company-verify' && (
         <CompanyRegistration 
           setView={setView} 
-          setCompanyUser={setCompanyUser} 
+          setCompanyUser={setCompanyUser}
+          primaryLang={primaryLang}
         />
       )}
 
@@ -78,6 +106,9 @@ function App() {
           setReminders={setReminders}
           history={history}
           setHistory={setHistory}
+          setActiveTraceId={setActiveTraceId}
+          primaryLang={primaryLang}
+          isOffline={isOffline}
         />
       )}
 
@@ -91,6 +122,7 @@ function App() {
           history={history}
           setHistory={setHistory}
           setActiveTraceId={setActiveTraceId}
+          primaryLang={primaryLang}
         />
       )}
 
@@ -100,9 +132,10 @@ function App() {
           setView={setView}
           harvests={harvests}
           batches={batches}
+          primaryLang={primaryLang}
         />
       )}
-    </>
+    </div>
   );
 }
 
