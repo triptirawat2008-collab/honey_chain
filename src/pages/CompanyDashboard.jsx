@@ -2,26 +2,29 @@ import React, { useState } from 'react';
 import { 
   Hexagon, LayoutDashboard, PlusCircle, Building, ShieldCheck, 
   Layers, FileText, Activity, Check, Upload, ArrowRight,
-  LogOut, AlertCircle, Search
+  LogOut, AlertCircle, Search, QrCode, Printer, CheckCircle2,
+  Users, Sparkles, Filter, ChevronRight
 } from 'lucide-react';
 import { generateMockHash } from '../data/mockData';
+import SpeakerButton from '../components/SpeakerButton';
 
 export default function CompanyDashboard({ 
-  user, setView, harvests, batches, setBatches, history, setHistory, setActiveTraceId 
+  user, setView, harvests, batches, setBatches, history, setHistory, setActiveTraceId,
+  primaryLang = 'hi'
 }) {
   const [activeSubTab, setActiveSubTab] = useState('overview'); // overview, create-batch, previous-batches
   
   // Step-by-step form state
   const [currentStep, setCurrentStep] = useState(1); // 1: Select Harvests, 2: Batch Info, 3: Lab Info, 4: Verifying/Done
-  const [selectedHarvestIds, setSelectedHarvestIds] = useState([]);
-  const [productName, setProductName] = useState('');
-  const [batchQuantity, setBatchQuantity] = useState('');
-  const [processingInfo, setProcessingInfo] = useState('');
-  const [labName, setLabName] = useState('Demo Honey Testing Laboratory');
+  const [selectedHarvestIds, setSelectedHarvestIds] = useState(['HB-BK0001-20260820-01', 'HB-BK0001-20260824-02']);
+  const [productName, setProductName] = useState('Raw Organic Mustard & Multifloral Honey (500g Jar)');
+  const [batchQuantity, setBatchQuantity] = useState('500 kg (1,000 Jars)');
+  const [processingInfo, setProcessingInfo] = useState('Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.');
+  const [labName, setLabName] = useState('Demo Honey Testing Laboratory (NABL #104)');
   const [labReportFile, setLabReportFile] = useState(null);
 
   // Verification simulation state
-  const [verificationStep, setVerificationStep] = useState(0); // 0: idle, 1: license check, 2: harvest trace check, 3: lab check, 4: done
+  const [verificationStep, setVerificationStep] = useState(0);
   const [createdBatchId, setCreatedBatchId] = useState(null);
 
   // Search filter for harvests
@@ -30,7 +33,9 @@ export default function CompanyDashboard({
   // Handle source harvest selection toggle
   const toggleHarvestSelection = (id) => {
     if (selectedHarvestIds.includes(id)) {
-      setSelectedHarvestIds(selectedHarvestIds.filter(hid => hid !== id));
+      if (selectedHarvestIds.length > 1) {
+        setSelectedHarvestIds(selectedHarvestIds.filter(hid => hid !== id));
+      }
     } else {
       setSelectedHarvestIds([...selectedHarvestIds, id]);
     }
@@ -70,9 +75,11 @@ export default function CompanyDashboard({
             batchId: newBatchId,
             companyName: user.companyName,
             licenseNumber: user.licenseNumber,
+            fssaiNumber: user.fssaiNumber || "FSSAI 10021051000124",
             productName: productName,
+            productNameHi: productName,
             batchQuantity: batchQuantity,
-            processingInfo: processingInfo || "Blended and filtered for consistent density and moisture content.",
+            processingInfo: processingInfo || "Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.",
             createdDate: new Date().toISOString().split('T')[0],
             labName: labName,
             labReference: "LAB-SYN-00001",
@@ -80,6 +87,7 @@ export default function CompanyDashboard({
             labStatus: "Verified",
             blockchainStatus: "Verified",
             sourceHarvestIds: selectedHarvestIds,
+            blockNumber: 148922,
             hash: hashVal,
             previousHash: batches[0]?.hash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             txRef: "0x" + generateMockHash(hashVal).substring(0, 60),
@@ -98,25 +106,26 @@ export default function CompanyDashboard({
           };
           setHistory([newHistoryItem, ...history]);
 
-        }, 1000);
-      }, 1000);
-    }, 1000);
+        }, 900);
+      }, 900);
+    }, 900);
   };
 
   const resetBatchForm = () => {
     setCurrentStep(1);
     setVerificationStep(0);
     setCreatedBatchId(null);
-    setSelectedHarvestIds([]);
-    setProductName('');
-    setBatchQuantity('');
-    setProcessingInfo('');
+    setSelectedHarvestIds(['HB-BK0001-20260820-01', 'HB-BK0001-20260824-02']);
+    setProductName('Raw Organic Mustard & Multifloral Honey (500g Jar)');
+    setBatchQuantity('500 kg (1,000 Jars)');
+    setProcessingInfo('Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.');
     setLabReportFile(null);
   };
 
   // Calculate unique beekeepers from selected harvests
   const selectedHarvestDetails = harvests.filter(h => selectedHarvestIds.includes(h.harvestId));
-  const uniqueBeekeepers = new Set(selectedHarvestDetails.map(h => h.beekeeperId)).size;
+  const uniqueBeekeepers = new Set(selectedHarvestDetails.map(h => h.beekeeperName)).size;
+  const totalVolume = batches.reduce((acc, curr) => acc + (parseInt(curr.batchQuantity) || 500), 0);
 
   // Filter harvests by search query
   const filteredHarvests = harvests.filter(h => 
@@ -129,55 +138,61 @@ export default function CompanyDashboard({
     <div className="dashboard-layout">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <Hexagon size={24} fill="#F5A623" color="#D97706" strokeWidth={2} />
-          <span className="sidebar-logo-text">HoneyChain</span>
+        <div className="sidebar-header" onClick={() => setView('landing')} style={{ cursor: 'pointer' }}>
+          <Hexagon size={28} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
+          <div>
+            <span className="sidebar-logo-text">HoneyChain</span>
+            <div style={{ fontSize: '0.72rem', color: '#DCFCE7', fontWeight: 600 }}>कंपनी पोर्टल • FSSAI Licensed</div>
+          </div>
         </div>
 
         <ul className="sidebar-menu">
-          <li className="sidebar-label">Dashboard</li>
+          <li className="sidebar-label">{primaryLang === 'hi' ? 'कंपनी डैशबोर्ड' : 'Processor Dashboard'}</li>
+          
           <li 
             className={`sidebar-item ${activeSubTab === 'overview' ? 'active' : ''}`}
             onClick={() => setActiveSubTab('overview')}
           >
             <LayoutDashboard size={18} />
-            <span>Overview</span>
+            <span>{primaryLang === 'hi' ? 'डैशबोर्ड विवरण' : 'Overview'}</span>
           </li>
 
-          <li className="sidebar-label">Traceability</li>
+          <li className="sidebar-label">{primaryLang === 'hi' ? 'बैच व पैकेजिंग' : 'Batching & Bottling'}</li>
+          
           <li 
-            className={`sidebar-item ${activeSubTab === 'create-batch' ? 'active' : ''}`}
+            className={`sidebar-item sidebar-item-highlight ${activeSubTab === 'create-batch' ? 'active' : ''}`}
             onClick={() => { resetBatchForm(); setActiveSubTab('create-batch'); }}
           >
             <PlusCircle size={18} />
-            <span>Create Batch</span>
+            <span>{primaryLang === 'hi' ? '➕ नया बैच बनाएं' : '➕ Create New Batch'}</span>
           </li>
+          
           <li 
             className={`sidebar-item ${activeSubTab === 'previous-batches' ? 'active' : ''}`}
             onClick={() => setActiveSubTab('previous-batches')}
           >
             <Layers size={18} />
-            <span>Previous Batches</span>
+            <span>{primaryLang === 'hi' ? 'निर्मित बैच (Master QR)' : 'Master Batches'}</span>
           </li>
         </ul>
 
         <div className="sidebar-footer">
-          <div className="sidebar-profile" style={{ marginBottom: "1rem" }}>
-            <div className="sidebar-avatar" style={{ backgroundColor: "var(--color-secondary-dark)" }}>
-              {user.companyName.split(' ').map(n => n[0]).join('')}
+          <div className="sidebar-profile" style={{ marginBottom: '1rem' }}>
+            <div className="sidebar-avatar" style={{ backgroundColor: 'var(--color-secondary-dark)' }}>
+              🏢
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{user.companyName}</div>
-              <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)" }}>Licensed Processor</div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.companyName}</div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>{user.licenseNumber}</div>
             </div>
           </div>
           <div 
             className="sidebar-item" 
-            onClick={() => { setView('role-selection'); }}
-            style={{ color: "#FCA5A5", padding: "0.5rem" }}
+            onClick={() => setView('role-selection')}
+            style={{ color: '#FCA5A5', padding: '0.5rem', cursor: 'pointer' }}
           >
             <LogOut size={16} />
-            <span>Exit Dashboard</span>
+            <span>{primaryLang === 'hi' ? 'बाहर जाएं (Logout)' : 'Exit Dashboard'}</span>
           </div>
         </div>
       </aside>
@@ -187,12 +202,22 @@ export default function CompanyDashboard({
         {/* Header */}
         <header className="dashboard-header">
           <div className="dashboard-title-area">
-            <h1>Company Processing Portal</h1>
-            <p>Blend verifiable harvests into commercial batches</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <h1>{primaryLang === 'hi' ? 'कंपनी एवं एफपीओ प्रसंस्करण पोर्टल' : 'Company & FPO Processing Portal'}</h1>
+              <SpeakerButton 
+                text={primaryLang === 'hi' 
+                  ? "कंपनी व एफपीओ पोर्टल। किसानों से प्राप्त कच्ची शहद को मिलाकर उपभोक्ता बोतलों के लिए मास्टर QR कोड बनाएं।"
+                  : "Company and FPO portal. Blend verified raw farmer harvests into commercial batches with master bottle QR codes."}
+                lang={primaryLang}
+                size={18}
+              />
+            </div>
+            <p>{primaryLang === 'hi' ? 'कच्ची शहद का संकलन, ब्लेंडिंग और बोतल लेबल मास्टर QR कोड' : 'Raw honey aggregation, batch blending, and master QR code generation'}</p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span className="badge-active" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", backgroundColor: "var(--color-secondary-light)", color: "var(--color-secondary-dark)" }}>
-              <Building size={14} /> License: {user.licenseNumber}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span className="badge-active" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700, padding: '0.5rem 0.9rem' }}>
+              <Building size={16} /> {user.fssaiNumber || user.licenseNumber}
             </span>
           </div>
         </header>
@@ -205,111 +230,113 @@ export default function CompanyDashboard({
             <div>
               {/* Summary Cards */}
               <div className="stats-grid">
-                <div className="stats-card">
-                  <div className="stats-icon-box icon-purple">
-                    <Layers size={24} />
+                <div className="stats-card-rural">
+                  <div className="stats-card-icon-box" style={{ backgroundColor: '#F3E8FF', color: '#7C3AED' }}>
+                    📦
                   </div>
                   <div className="stats-info">
-                    <h4>Total Batches</h4>
-                    <p>{batches.length}</p>
+                    <h4>{primaryLang === 'hi' ? 'कुल बैच निर्मित' : 'Batches Created'}</h4>
+                    <p className="stats-number">{batches.length}</p>
+                    <span className="stats-sub-note">{primaryLang === 'hi' ? 'मास्टर QR सक्रिय' : 'Master QR active'}</span>
                   </div>
                 </div>
 
-                <div className="stats-card">
-                  <div className="stats-icon-box icon-yellow">
-                    <FileText size={24} />
+                <div className="stats-card-rural">
+                  <div className="stats-card-icon-box" style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                    🌾
                   </div>
                   <div className="stats-info">
-                    <h4>Source Harvests</h4>
-                    <p>{harvests.length}</p>
+                    <h4>{primaryLang === 'hi' ? 'किसान स्रोत' : 'Source Harvests'}</h4>
+                    <p className="stats-number">{harvests.length}</p>
+                    <span className="stats-sub-note">{primaryLang === 'hi' ? 'UP एवं राजस्थान किसान' : 'Contributing farmers'}</span>
                   </div>
                 </div>
 
-                <div className="stats-card">
-                  <div className="stats-icon-box icon-green">
-                    <ShieldCheck size={24} />
+                <div className="stats-card-rural">
+                  <div className="stats-card-icon-box" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                    ⚖️
                   </div>
                   <div className="stats-info">
-                    <h4>Verified Labs</h4>
-                    <p>2</p>
+                    <h4>{primaryLang === 'hi' ? 'कुल संकलित मात्रा' : 'Procurement Volume'}</h4>
+                    <p className="stats-number">{totalVolume} kg</p>
+                    <span className="stats-sub-note">{primaryLang === 'hi' ? 'कच्ची शहद का स्टॉक' : 'Raw stock processed'}</span>
                   </div>
                 </div>
 
-                <div className="stats-card">
-                  <div className="stats-icon-box icon-green" style={{ backgroundColor: "#F3E8FF", color: "#7C3AED" }}>
-                    <Activity size={24} />
+                <div className="stats-card-rural">
+                  <div className="stats-card-icon-box" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                    🛡️
                   </div>
                   <div className="stats-info">
-                    <h4>Blockchain Ledger</h4>
-                    <p style={{ fontSize: "1.2rem", fontWeight: 600, marginTop: "0.25rem" }}>TAMPER-EVIDENT</p>
+                    <h4>{primaryLang === 'hi' ? 'ब्लॉकचेन लेजर' : 'Blockchain Ledger'}</h4>
+                    <p className="stats-status-text" style={{ color: 'var(--color-secondary-dark)' }}>
+                      🟢 TAMPER-EVIDENT
+                    </p>
+                    <span className="stats-sub-note">{primaryLang === 'hi' ? 'सुरक्षित लेजर' : 'Zero alterations'}</span>
                   </div>
                 </div>
               </div>
 
               {/* Batches Table */}
-              <div className="table-card">
+              <div className="table-card" style={{ marginTop: '2rem' }}>
                 <div className="table-card-header">
-                  <h3>Recent Blended Batches</h3>
-                  <button className="btn btn-green btn-sm" onClick={() => setActiveSubTab('create-batch')}>
-                    <PlusCircle size={16} /> Create Batch
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
+                    {primaryLang === 'hi' ? 'वाणिज्यिक उत्पाद बैच (Commercial Batches)' : 'Commercial Product Batches'}
+                  </h3>
+                  <button className="btn btn-primary btn-sm" onClick={() => { resetBatchForm(); setActiveSubTab('create-batch'); }}>
+                    <PlusCircle size={16} /> {primaryLang === 'hi' ? 'नया बैच बनाएं' : 'Create Batch'}
                   </button>
                 </div>
-                
+
                 <div className="table-responsive">
                   <table className="custom-table">
                     <thead>
                       <tr>
-                        <th>Batch ID</th>
-                        <th>Product Name</th>
-                        <th>Harvests Blended</th>
-                        <th>Created Date</th>
-                        <th>Lab Quality</th>
-                        <th>Blockchain Status</th>
-                        <th>Action</th>
+                        <th>{primaryLang === 'hi' ? 'मास्टर बैच आईडी' : 'Batch ID'}</th>
+                        <th>{primaryLang === 'hi' ? 'उत्पाद का नाम' : 'Product Name'}</th>
+                        <th>{primaryLang === 'hi' ? 'स्रोत किसान' : 'Source Farmers'}</th>
+                        <th>{primaryLang === 'hi' ? 'मात्रा' : 'Quantity'}</th>
+                        <th>{primaryLang === 'hi' ? 'तारीख' : 'Created Date'}</th>
+                        <th>{primaryLang === 'hi' ? 'QR कोड' : 'Master QR'}</th>
+                        <th>{primaryLang === 'hi' ? 'सत्यापन' : 'Action'}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {batches.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" style={{ textAlign: "center", color: "var(--color-text-light)", padding: "2rem" }}>
-                            No batches generated yet. Click "Create Batch" to start processing.
+                      {batches.map(b => (
+                        <tr key={b.batchId}>
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: 'var(--color-primary-dark)', fontSize: '0.95rem' }}>
+                              {b.batchId}
+                            </strong>
+                          </td>
+                          <td>
+                            <strong>{b.productName}</strong>
+                          </td>
+                          <td>
+                            <span className="badge-active" style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                              👥 {b.sourceHarvestIds?.length || 2} Harvests
+                            </span>
+                          </td>
+                          <td>{b.batchQuantity}</td>
+                          <td>{b.createdDate}</td>
+                          <td>
+                            <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>
+                              🟢 ✓ Master QR Ready
+                            </span>
+                          </td>
+                          <td>
+                            <button 
+                              className="btn btn-outline-green btn-sm"
+                              onClick={() => {
+                                setActiveTraceId(b.batchId);
+                                setView('consumer-trace');
+                              }}
+                            >
+                              <QrCode size={14} /> {primaryLang === 'hi' ? 'उपभोक्ता जाँच' : 'Verify'}
+                            </button>
                           </td>
                         </tr>
-                      ) : (
-                        batches.map((b) => (
-                          <tr key={b.batchId}>
-                            <td style={{ fontWeight: 600 }}>{b.batchId}</td>
-                            <td>{b.productName}</td>
-                            <td>
-                              <span className="badge-active" style={{ backgroundColor: "#F3F4F6", color: "var(--color-text-muted)" }}>
-                                {b.sourceHarvestIds.length} Harvests
-                              </span>
-                            </td>
-                            <td>{b.createdDate}</td>
-                            <td>
-                              <span className="badge-active" style={{ backgroundColor: "#D1FAE5", color: "#065F46" }}>
-                                ✓ Verified Lab
-                              </span>
-                            </td>
-                            <td>
-                              <span className="blockchain-status-tag">
-                                <ShieldCheck size={12} /> {b.blockchainStatus}
-                              </span>
-                            </td>
-                            <td>
-                              <button 
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setActiveTraceId(b.batchId);
-                                  setView('consumer-trace');
-                                }}
-                              >
-                                Trace Batch
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -317,309 +344,320 @@ export default function CompanyDashboard({
             </div>
           )}
 
-          {/* TAB 2: CREATE BATCH FORM */}
+          {/* TAB 2: CREATE BATCH WIZARD */}
           {activeSubTab === 'create-batch' && (
-            <div className="form-card">
-              <h2 style={{ marginBottom: "0.25rem" }}>Create Commercial Honey Batch</h2>
-              <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem", marginBottom: "2rem" }}>
-                Select verified source harvests from independent beekeepers, document processing controls, and verify laboratory testing credentials.
-              </p>
-
-              {/* Progress Indicator for Step Form */}
-              {currentStep < 4 && (
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2.5rem", position: "relative" }}>
-                  <div style={{ position: "absolute", top: "50%", left: "0", right: "0", height: "2px", backgroundColor: "var(--color-border)", zIndex: 0, transform: "translateY(-50%)" }}></div>
-                  
-                  <div className={`flow-step`} style={{ zIndex: 1, backgroundColor: "var(--color-card-bg)", padding: "0 0.5rem" }}>
-                    <div className={`flow-circle ${currentStep >= 1 ? 'active' : ''}`} style={{ margin: "0 auto 0.25rem auto" }}>1</div>
-                    <span style={{ fontSize: "0.75rem", fontWeight: currentStep === 1 ? 700 : 500 }}>Select Harvests</span>
-                  </div>
-
-                  <div className={`flow-step`} style={{ zIndex: 1, backgroundColor: "var(--color-card-bg)", padding: "0 0.5rem" }}>
-                    <div className={`flow-circle ${currentStep >= 2 ? 'active' : ''}`} style={{ margin: "0 auto 0.25rem auto" }}>2</div>
-                    <span style={{ fontSize: "0.75rem", fontWeight: currentStep === 2 ? 700 : 500 }}>Batch Details</span>
-                  </div>
-
-                  <div className={`flow-step`} style={{ zIndex: 1, backgroundColor: "var(--color-card-bg)", padding: "0 0.5rem" }}>
-                    <div className={`flow-circle ${currentStep >= 3 ? 'active' : ''}`} style={{ margin: "0 auto 0.25rem auto" }}>3</div>
-                    <span style={{ fontSize: "0.75rem", fontWeight: currentStep === 3 ? 700 : 500 }}>Lab Quality</span>
-                  </div>
+            <div className="wizard-card-container" style={{ maxWidth: '820px' }}>
+              <div className="wizard-header">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
+                    {currentStep === 1 && (primaryLang === 'hi' ? 'चरण 1: कच्ची शहद स्रोत चुनें (Multi-Select Harvests)' : 'Step 1: Select Source Harvests')}
+                    {currentStep === 2 && (primaryLang === 'hi' ? 'चरण 2: बैच विवरण व मात्रा' : 'Step 2: Batch Details & Packaging')}
+                    {currentStep === 3 && (primaryLang === 'hi' ? 'चरण 3: लैब प्रमाण व सत्यापन' : 'Step 3: Lab Analysis & Blending')}
+                    {currentStep === 4 && (primaryLang === 'hi' ? 'चरण 4: मास्टर QR कोड निर्माण' : 'Step 4: Master QR Code')}
+                  </h2>
+                  <SpeakerButton 
+                    text={primaryLang === 'hi'
+                      ? "कच्ची शहद का स्रोत चुनें। आप अलग-अलग किसानों से प्राप्त शहद को एक साथ चुनकर ब्लेंड कर सकते हैं।"
+                      : "Select source harvests. Check multiple contributing farmer lots to preserve complete provenance trail."}
+                    lang={primaryLang}
+                    size={20}
+                  />
                 </div>
-              )}
 
-              {/* STEP 1: SELECT HARVESTS */}
+                <div className="wizard-dots-row">
+                  {[1, 2, 3, 4].map(s => (
+                    <div key={s} className={`wizard-dot ${currentStep === s ? 'active' : currentStep > s ? 'completed' : ''}`}>
+                      {currentStep > s ? '✓' : s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* STEP 1: Multi-Select Harvests */}
               {currentStep === 1 && (
-                <div>
-                  <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Step 1: Choose Source Honey Harvests</h3>
-                  <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: "1.5rem" }}>
-                    Select one or more raw harvests extracted by verified beekeepers. One batch may contain honey from multiple harvests.
-                  </p>
+                <div className="wizard-body">
+                  <div className="wizard-question-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', margin: 0 }}>
+                        {primaryLang === 'hi'
+                          ? 'जिन कच्ची शहद बैचों को मिलाकर यह उत्पाद बनाया जा रहा है, उन्हें चुनें:'
+                          : 'Select raw farmer harvests contributing to this commercial blend:'}
+                      </p>
 
-                  <div className="form-group" style={{ position: "relative" }}>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Search harvests by ID, beekeeper, or flower source..." 
-                      style={{ paddingLeft: "2.5rem" }}
-                      value={harvestSearch}
-                      onChange={(e) => setHarvestSearch(e.target.value)}
-                    />
-                    <Search size={16} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-light)" }} />
-                  </div>
-
-                  {/* Harvest Selection List */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "300px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "0.75rem", marginBottom: "1.5rem" }}>
-                    {filteredHarvests.length === 0 ? (
-                      <div style={{ textAlign: "center", color: "var(--color-text-light)", padding: "2rem" }}>
-                        No matches found.
+                      <div className="provenance-counter-badge">
+                        ✨ {primaryLang === 'hi' 
+                          ? `${selectedHarvestIds.length} शहद बैच चयनित (${uniqueBeekeepers} किसानों से)` 
+                          : `${selectedHarvestIds.length} Harvests Selected (${uniqueBeekeepers} Beekeepers)`}
                       </div>
-                    ) : (
-                      filteredHarvests.map(h => (
-                        <div 
-                          key={h.harvestId} 
-                          className={`verify-results ${selectedHarvestIds.includes(h.harvestId) ? 'verify-success' : ''}`}
-                          style={{ margin: 0, padding: "0.85rem 1rem", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                          onClick={() => toggleHarvestSelection(h.harvestId)}
-                        >
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                              <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{h.harvestId}</span>
-                              <span className="badge-active" style={{ fontSize: "0.7rem", backgroundColor: "#FEF3C7", color: "#D97706" }}>
-                                {h.flowerSources.join('/')}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "0.15rem" }}>
-                              Beekeeper: <strong>{h.beekeeperName}</strong> ({h.beekeeperId}) | Date: {h.harvestDate}
-                            </div>
-                          </div>
-                          <div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '340px', overflowY: 'auto' }}>
+                      {harvests.map(h => {
+                        const isChecked = selectedHarvestIds.includes(h.harvestId);
+                        return (
+                          <div 
+                            key={h.harvestId}
+                            className={`harvest-select-card ${isChecked ? 'selected' : ''}`}
+                            onClick={() => toggleHarvestSelection(h.harvestId)}
+                          >
                             <input 
-                              type="checkbox" 
-                              checked={selectedHarvestIds.includes(h.harvestId)}
-                              onChange={() => {}} // toggled by parent div click
-                              style={{ transform: "scale(1.25)", cursor: "pointer" }}
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                             />
+                            
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '1rem', color: 'var(--color-text-main)' }}>
+                                  🧑‍🌾 {h.beekeeperName} ({h.state})
+                                </strong>
+                                <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '0.75rem' }}>
+                                  ✓ Verified Origin
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                                ID: <code style={{ color: 'var(--color-primary-dark)' }}>{h.harvestId}</code> | Flora: <strong>{h.flowerSources.join('/')}</strong> | Extraction: {h.harvestDate}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Selection summary */}
-                  <div style={{ display: "flex", justifyContent: "space-between", backgroundColor: "var(--color-neutral-bg)", padding: "1rem", borderRadius: "var(--radius-md)", border: "1px dashed var(--color-border)", marginBottom: "1.5rem" }}>
-                    <div>Source Harvests: <strong>{selectedHarvestIds.length}</strong></div>
-                    <div>Beekeepers: <strong>{uniqueBeekeepers}</strong></div>
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div className="wizard-actions">
+                    <button className="btn btn-secondary" onClick={() => setActiveSubTab('overview')}>
+                      {primaryLang === 'hi' ? 'रद्द करें' : 'Cancel'}
+                    </button>
                     <button 
-                      className="btn btn-green"
-                      disabled={selectedHarvestIds.length === 0}
-                      onClick={() => setCurrentStep(2)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+                      className="btn btn-green btn-wizard-next" 
+                      onClick={() => {
+                        if (selectedHarvestIds.length === 0) {
+                          alert("Please select at least 1 harvest source.");
+                          return;
+                        }
+                        setCurrentStep(2);
+                      }}
                     >
-                      Next: Batch Details <ArrowRight size={16} />
+                      <span>{primaryLang === 'hi' ? 'बैच विवरण दर्ज करें (Next)' : 'Continue to Batch Info'}</span>
+                      <ArrowRight size={20} />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 2: BATCH INFO */}
+              {/* STEP 2: Batch Details */}
               {currentStep === 2 && (
-                <div>
-                  <h3 style={{ fontSize: "1.1rem", marginBottom: "1.5rem" }}>Step 2: Processing & Packaging Details</h3>
-
-                  <div className="form-grid-2">
+                <div className="wizard-body">
+                  <div className="wizard-question-box">
                     <div className="form-group">
-                      <label className="form-label" htmlFor="product-name-input">Commercial Product Name</label>
+                      <label className="form-label" htmlFor="product-name-input">
+                        {primaryLang === 'hi' ? 'उत्पाद का नाम (Product Label Name):' : 'Product Label Name:'}
+                      </label>
                       <input 
                         id="product-name-input"
                         type="text" 
                         className="form-input" 
-                        placeholder="e.g. Wildflower Blossom Honey"
                         value={productName}
                         onChange={(e) => setProductName(e.target.value)}
+                        style={{ height: '52px', fontSize: '1.05rem', fontWeight: 600 }}
                         required
                       />
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label" htmlFor="batch-quantity-input">Blended Quantity (kg)</label>
+                      <label className="form-label" htmlFor="batch-quantity-input">
+                        {primaryLang === 'hi' ? 'कुल बैच मात्रा एवं जार संख्या:' : 'Total Batch Quantity & Jar Count:'}
+                      </label>
                       <input 
                         id="batch-quantity-input"
                         type="text" 
                         className="form-input" 
-                        placeholder="e.g. 500 kg"
+                        placeholder="e.g. 500 kg (1,000 Jars of 500g)"
                         value={batchQuantity}
                         onChange={(e) => setBatchQuantity(e.target.value)}
+                        style={{ height: '52px' }}
                         required
                       />
                     </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="processing-notes-input">
+                        {primaryLang === 'hi' ? 'प्रसंस्करण व छनाई विवरण (Processing Information):' : 'Processing & Filtration Details:'}
+                      </label>
+                      <textarea 
+                        id="processing-notes-input"
+                        className="form-input" 
+                        rows="3" 
+                        value={processingInfo}
+                        onChange={(e) => setProcessingInfo(e.target.value)}
+                      ></textarea>
+                    </div>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="processing-info-textarea">Processing / Filtration / Mixture Notes</label>
-                    <textarea 
-                      id="processing-info-textarea"
-                      className="form-input" 
-                      rows="4" 
-                      placeholder="Specify blending controls: e.g. Cold-filtration, moisture control at 18%, blended for flavor consistency..."
-                      value={processingInfo}
-                      onChange={(e) => setProcessingInfo(e.target.value)}
-                    ></textarea>
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.5rem" }}>
+                  <div className="wizard-actions">
                     <button className="btn btn-secondary" onClick={() => setCurrentStep(1)}>
-                      Back
+                      <ArrowLeft size={18} /> {primaryLang === 'hi' ? 'पीछे' : 'Back'}
                     </button>
-                    <button 
-                      className="btn btn-green"
-                      onClick={() => setCurrentStep(3)}
-                      disabled={!productName || !batchQuantity}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
-                    >
-                      Next: Lab Quality <ArrowRight size={16} />
+                    <button className="btn btn-green btn-wizard-next" onClick={() => setCurrentStep(3)}>
+                      <span>{primaryLang === 'hi' ? 'लैब जाँच जोड़ें (Next)' : 'Next to Lab Test'}</span>
+                      <ArrowRight size={20} />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 3: LAB QUALITY */}
+              {/* STEP 3: Lab Analysis Verification */}
               {currentStep === 3 && (
-                <div>
-                  <h3 style={{ fontSize: "1.1rem", marginBottom: "1.5rem" }}>Step 3: Laboratory Quality Assurance</h3>
-
-                  <div className="form-grid-2">
+                <div className="wizard-body">
+                  <div className="wizard-question-box">
                     <div className="form-group">
-                      <label className="form-label" htmlFor="batch-lab-select">Quality Inspection Lab</label>
+                      <label className="form-label" htmlFor="company-lab-select">
+                        {primaryLang === 'hi' ? 'मान्यता प्राप्त टेस्टिंग लैब:' : 'Accredited Testing Laboratory:'}
+                      </label>
                       <select 
-                        id="batch-lab-select"
+                        id="company-lab-select"
                         className="form-input"
                         value={labName}
-                        onChange={(e) => {
-                          setLabName(e.target.value);
-                        }}
+                        onChange={(e) => setLabName(e.target.value)}
+                        style={{ height: '52px' }}
                       >
-                        <option value="Demo Honey Testing Laboratory">Demo Honey Testing Laboratory (LAB-SYN-00001)</option>
-                        <option value="National Honey Analytics">National Honey Analytics (LAB-SYN-00002)</option>
+                        <option value="Demo Honey Testing Laboratory (NABL #104)">Demo Honey Testing Laboratory (NABL #104)</option>
+                        <option value="National Honey Analytics & Purity Center">National Honey Analytics & Purity Center</option>
                       </select>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label" htmlFor="batch-report-upload">Upload Lab Report PDF</label>
-                      <div className="file-upload-box" onClick={() => document.getElementById('batch-report-upload')?.click()}>
-                        <Upload size={18} className="file-upload-icon" />
-                        <div className="file-upload-text">
-                          {labReportFile ? (
-                            <strong style={{ color: "var(--color-secondary)" }}>{labReportFile.name} (Attached)</strong>
-                          ) : "Click to select PDF report"}
-                        </div>
+                      <label className="form-label">
+                        {primaryLang === 'hi' ? 'मास्टर बैच लैब रिपोर्ट (PDF):' : 'Master Batch Analysis Certificate:'}
+                      </label>
+                      <div 
+                        className="file-upload-box-wizard" 
+                        onClick={() => document.getElementById('batch-pdf-upload')?.click()}
+                        style={{ minHeight: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', padding: '0.5rem 1rem', backgroundColor: '#FDFBF7' }}
+                      >
+                        <Upload size={20} style={{ color: 'var(--color-primary-dark)' }} />
+                        <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>
+                          {labReportFile ? `${labReportFile.name} (Attached)` : "Click to select Batch Lab PDF Report"}
+                        </span>
                       </div>
                       <input 
-                        id="batch-report-upload"
+                        id="batch-pdf-upload"
                         type="file" 
                         accept=".pdf" 
-                        style={{ display: "none" }}
+                        style={{ display: 'none' }}
                         onChange={(e) => { if(e.target.files?.[0]) setLabReportFile(e.target.files[0]); }}
                       />
                     </div>
                   </div>
 
-                  <div className="disclaimer-box" style={{ marginBottom: "2rem" }}>
-                    <div style={{ display: "flex", gap: "0.4rem" }}>
-                      <AlertCircle size={16} style={{ color: "var(--color-primary-dark)", flexShrink: 0, marginTop: "2px" }} />
-                      <div>
-                        <strong>Laboratory Verification:</strong> Connecting testing documentation ensures trace transparency. Purity parameters are verified for moisture limits and sucrose thresholds.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div className="wizard-actions">
                     <button className="btn btn-secondary" onClick={() => setCurrentStep(2)}>
-                      Back
+                      <ArrowLeft size={18} /> {primaryLang === 'hi' ? 'पीछे' : 'Back'}
                     </button>
-                    <button 
-                      className="btn btn-primary"
-                      onClick={handleCreateBatch}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
-                    >
-                      Verify & Generate Batch Record
+                    <button className="btn btn-green btn-wizard-next" onClick={handleCreateBatch}>
+                      <span>{primaryLang === 'hi' ? 'ब्लॉकचेन बैच व Master QR बनाएं' : 'Commit Batch to Ledger'}</span>
+                      <Sparkles size={20} />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 4: VERIFICATION PROGRESS SCREEN */}
+              {/* STEP 4: Output Screen */}
               {currentStep === 4 && (
-                <div>
+                <div className="wizard-body">
                   {verificationStep < 4 ? (
-                    <div>
-                      <h3 style={{ textAlign: "center", marginBottom: "1.5rem" }}>Verifying Honey Batch Integrity</h3>
-                      <div style={{ display: "flex", justifyContent: "center", margin: "1rem 0" }}>
-                        <div className="flow-circle active" style={{ animation: "pulse 1.5s infinite" }}>
-                          {verificationStep}
-                        </div>
+                    <div style={{ padding: '2rem', textAlign: 'center' }}>
+                      <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem', fontWeight: 800 }}>
+                        {primaryLang === 'hi' ? 'मास्टर बैच ब्लॉकचेन सत्यापन प्रगति...' : 'Committing Master Batch to Blockchain...'}
+                      </h3>
+                      <div className="flow-circle active pulse-icon" style={{ margin: '0 auto 2rem auto', width: '4rem', height: '4rem', fontSize: '1.5rem' }}>
+                        🏭
                       </div>
-                      <ul className="progress-list">
-                        <li className={`progress-item ${verificationStep >= 1 ? 'completed' : ''}`}>
-                          <span className={`progress-bullet ${verificationStep >= 1 ? 'bullet-success' : 'bullet-pending'}`}>
-                            {verificationStep >= 1 ? '✓' : '1'}
-                          </span>
-                          <span>Verifying Company Processor License Status...</span>
+
+                      <ul className="rural-progress-list">
+                        <li className={`rural-progress-item ${verificationStep >= 1 ? 'done' : ''}`}>
+                          <span className="rural-bullet">{verificationStep >= 1 ? '✓' : '1'}</span>
+                          <span>FSSAI License ({user.licenseNumber}) Verified...</span>
                         </li>
-                        <li className={`progress-item ${verificationStep >= 2 ? 'completed' : ''}`}>
-                          <span className={`progress-bullet ${verificationStep >= 2 ? 'bullet-success' : 'bullet-pending'}`}>
-                            {verificationStep >= 2 ? '✓' : '2'}
-                          </span>
-                          <span>Tracing Blockchain Source Harvests Ledger Signatures ({selectedHarvestIds.length} harvests)...</span>
+                        <li className={`rural-progress-item ${verificationStep >= 2 ? 'done' : ''}`}>
+                          <span className="rural-bullet">{verificationStep >= 2 ? '✓' : '2'}</span>
+                          <span>Linking {selectedHarvestIds.length} raw farmer harvest hashes...</span>
                         </li>
-                        <li className={`progress-item ${verificationStep >= 3 ? 'completed' : ''}`}>
-                          <span className={`progress-bullet ${verificationStep >= 3 ? 'bullet-success' : 'bullet-pending'}`}>
-                            {verificationStep >= 3 ? '✓' : '3'}
-                          </span>
-                          <span>Verifying Quality Laboratory QA PDF hash credentials...</span>
-                        </li>
-                        <li className="progress-item">
-                          <span className="progress-bullet bullet-pending">4</span>
-                          <span>Committing block headers to HoneyChain blockchain registry...</span>
+                        <li className={`rural-progress-item ${verificationStep >= 3 ? 'done' : ''}`}>
+                          <span className="rural-bullet">{verificationStep >= 3 ? '✓' : '3'}</span>
+                          <span>Generating Master Bottle QR Matrix...</span>
                         </li>
                       </ul>
                     </div>
                   ) : (
-                    <div className="success-screen">
-                      <div className="success-icon-wrapper">
-                        <Check size={32} />
+                    <div className="success-output-screen">
+                      <div className="success-icon-badge" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                        <Check size={36} />
                       </div>
-                      <h3 className="success-title">Honey Batch Generated Successfully</h3>
-                      <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: "1.5rem" }}>
-                        Blockchain ledger entry successfully committed under reference: <br />
-                        <code style={{ fontSize: "0.8rem", color: "var(--color-accent-dark)" }}>{createdBatchId}</code>
+
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--color-secondary-dark)' }}>
+                        {primaryLang === 'hi' ? 'मास्टर बैच सफलतापूर्वक तैयार!' : 'Commercial Batch Created!'}
+                      </h2>
+                      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
+                        {primaryLang === 'hi' ? 'बोतल लेबलों के लिए मास्टर QR कोड तैयार है:' : 'Master QR code for jar labels is ready for retail packaging:'}
                       </p>
 
-                      <div className="qr-preview-box">
-                        <div className="qr-code-placeholder"></div>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>{createdBatchId}</div>
+                      <div className="printable-qr-card">
+                        <div className="qr-card-top-tag" style={{ backgroundColor: 'var(--color-secondary-dark)' }}>
+                          🏷️ HoneyChain Master Retail Label • शुद्धता गारंटी
+                        </div>
+
+                        <div className="qr-large-graphic">
+                          <QrCode size={180} color="#1F2937" />
+                        </div>
+
+                        <div className="qr-details-block">
+                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', textTransform: 'uppercase', fontWeight: 700 }}>
+                            MASTER BATCH ID
+                          </div>
+                          <div style={{ fontSize: '1.3rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--color-secondary-dark)' }}>
+                            {createdBatchId}
+                          </div>
+                          <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.35rem' }}>
+                            {productName}
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                            {user.companyName} • {batchQuantity}
+                          </div>
+                        </div>
+
                         <button 
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => alert("Simulated print sequence initiated. QR labels can now be affixed to commercial retail jars.")}
+                          className="btn btn-green btn-print-main"
+                          onClick={() => alert("Print layout generated for retail bottle labels.")}
                         >
-                          Print QR Labels
+                          <Printer size={20} />
+                          <span>{primaryLang === 'hi' ? 'बोतल लेबल्स के लिए Master QR प्रिंट करें' : 'Print Master QR Labels for Jars'}</span>
                         </button>
                       </div>
 
-                      <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-                        <button className="btn btn-secondary" onClick={resetBatchForm}>
-                          Create Another
-                        </button>
+                      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem', flexWrap: 'wrap' }}>
                         <button 
-                          className="btn btn-primary" 
+                          className="btn btn-outline-green" 
                           onClick={() => {
                             setActiveTraceId(createdBatchId);
                             setView('consumer-trace');
                           }}
+                          style={{ minHeight: '52px', fontSize: '1rem', fontWeight: 700 }}
                         >
-                          View Traceability Page
+                          🔍 {primaryLang === 'hi' ? 'उपभोक्ता सत्यापन पेज देखें' : 'Test Consumer QR Page'}
+                        </button>
+
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={() => {
+                            resetBatchForm();
+                            setActiveSubTab('overview');
+                          }}
+                          style={{ minHeight: '52px', fontSize: '1rem', fontWeight: 800 }}
+                        >
+                          🏠 {primaryLang === 'hi' ? 'डैशबोर्ड पर वापस' : 'Back to Dashboard'}
                         </button>
                       </div>
                     </div>
@@ -631,70 +669,49 @@ export default function CompanyDashboard({
 
           {/* TAB 3: PREVIOUS BATCHES */}
           {activeSubTab === 'previous-batches' && (
-            <div className="table-card">
-              <div className="table-card-header">
-                <h3>Blended Batch Registry Logs</h3>
-              </div>
-              
-              <div className="table-responsive">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Batch ID</th>
-                      <th>Product Name</th>
-                      <th>Quantity</th>
-                      <th>Harvests</th>
-                      <th>Created Date</th>
-                      <th>Lab Status</th>
-                      <th>Ledger Status</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batches.length === 0 ? (
-                      <tr>
-                        <td colSpan="8" style={{ textAlign: "center", color: "var(--color-text-light)", padding: "2rem" }}>
-                          No batches registered.
-                        </td>
-                      </tr>
-                    ) : (
-                      batches.map(b => (
-                        <tr key={b.batchId}>
-                          <td style={{ fontWeight: 600 }}>{b.batchId}</td>
-                          <td>{b.productName}</td>
-                          <td>{b.batchQuantity}</td>
-                          <td>
-                            <span className="badge-active" style={{ backgroundColor: "#F3F4F6", color: "var(--color-text-muted)" }}>
-                              {b.sourceHarvestIds.length} Harvests
-                            </span>
-                          </td>
-                          <td>{b.createdDate}</td>
-                          <td>
-                            <span className="badge-active" style={{ backgroundColor: "#D1FAE5", color: "#065F46" }}>
-                              ✓ Checked
-                            </span>
-                          </td>
-                          <td>
-                            <span className="blockchain-status-tag">
-                              <ShieldCheck size={12} /> {b.blockchainStatus}
-                            </span>
-                          </td>
-                          <td>
-                            <button 
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => {
-                                  setActiveTraceId(b.batchId);
-                                  setView('consumer-trace');
-                              }}
-                            >
-                              Trace Batch
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            <div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem' }}>
+                {primaryLang === 'hi' ? 'सभी मास्टर बैच (Master Batches)' : 'All Master Batches'}
+              </h2>
+
+              <div className="harvest-cards-grid">
+                {batches.map(b => (
+                  <div key={b.batchId} className="harvest-card-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-light)', fontWeight: 700 }}>
+                          BATCH ID
+                        </span>
+                        <h3 style={{ fontFamily: 'monospace', color: 'var(--color-secondary-dark)', fontSize: '1.15rem' }}>
+                          {b.batchId}
+                        </h3>
+                      </div>
+                      <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
+                        🟢 Active Master QR
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0.5rem 0' }}>{b.productName}</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+                      {b.processingInfo}
+                    </p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--color-border)', paddingTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                        📦 {b.batchQuantity}
+                      </span>
+                      <button 
+                        className="btn btn-outline-green btn-sm"
+                        onClick={() => {
+                          setActiveTraceId(b.batchId);
+                          setView('consumer-trace');
+                        }}
+                      >
+                        <QrCode size={14} /> {primaryLang === 'hi' ? 'जाँचें' : 'Trace'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
