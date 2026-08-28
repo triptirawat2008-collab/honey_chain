@@ -113,46 +113,46 @@ app.get("/api/verify/license/:licenseNumber", async (req, res) => {
         });
     }
 });
-app.get("/api/verify/ulr/:ulrNumber", async (req, res) => {
-    try {
-        const { ulrNumber } = req.params;
 
+app.post("/api/verify-ulr", async (req, res) => {
+    const { ulrNumber } = req.body;
+
+    if (!ulrNumber) {
+        return res.status(400).json({
+            verified: false,
+            message: "ULR ID is required"
+        });
+    }
+
+    try {
         const result = await pool.query(
-            `SELECT ulr_number, lab_id, lab_name,
-                    nabl_certificate_number,
-                    accreditation_status,
-                    state, city,
-                    report_number,
-                    report_date,
-                    sample_id
-             FROM verification.lab_report_registry
-             WHERE ulr_number = $1`,
+            `SELECT *
+FROM verification.lab_report_registry          
+   WHERE ulr_number = $1`,
             [ulrNumber]
         );
 
-        if (result.rows.length === 0) {
+        if (result.rows.length > 0) {
             return res.json({
-                verified: false,
-                message: "ULR not found"
+                verified: true,
+                lab: result.rows[0]
             });
         }
 
-        res.json({
-            verified: true,
-            message: "ULR verified",
-            data: result.rows[0]
+        return res.json({
+            verified: false,
+            message: "ULR ID not found"
         });
 
     } catch (error) {
         console.error(error);
 
-        res.status(500).json({
+        return res.status(500).json({
             verified: false,
             message: "Database verification failed"
         });
     }
 });
-
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

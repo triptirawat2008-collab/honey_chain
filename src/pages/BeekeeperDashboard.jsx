@@ -19,6 +19,13 @@ export default function BeekeeperDashboard({
   const [activeSubTab, setActiveSubTab] = useState('overview');
   
   // Guided Wizard Step for Create Harvest (1 to 6)
+const [ulrNumber, setUlrNumber] = useState("");
+
+const [ulrStatus, setUlrStatus] = useState(null);
+// null = not checked
+// "checking" = checking database
+// "verified" = valid ULR
+// "invalid" = ULR not found
   const [wizardStep, setWizardStep] = useState(1);
   const [selectedApiaryId, setSelectedApiaryId] = useState(apiaries[0]?.locationId || 'LOC-001');
   const [harvestDate, setHarvestDate] = useState(new Date().toISOString().split('T')[0]);
@@ -65,7 +72,38 @@ export default function BeekeeperDashboard({
     { id: "Sunflower", nameEn: "Sunflower", nameHi: "सूरजमुखी", icon: "🌻" },
     { id: "Multifloral", nameEn: "Multifloral", nameHi: "बहुपुष्पी (जंगली फूल)", icon: "💐" }
   ];
+const handleVerifyULR = async () => {
+    try {
+        const response = await fetch(
+            "http://localhost:5000/api/verify-ulr",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    ulrNumber: ulrNumber
+                })
+            }
+        );
 
+        const data = await response.json();
+
+        console.log("ULR verification:", data);
+
+        if (data.verified) {
+            // ULR exists
+            setLabName(data.lab.lab_name);
+        } else {
+            // ULR doesn't exist
+            alert("Invalid ULR Number");
+        }
+
+    } catch (error) {
+        console.error("ULR verification error:", error);
+        alert("Could not connect to the server");
+    }
+};
   const handleFlowerToggle = (flowerId) => {
     if (selectedFlowers.includes(flowerId)) {
       if (selectedFlowers.length > 1) {
@@ -1023,22 +1061,60 @@ export default function BeekeeperDashboard({
                         : 'Attach official purity test report or take a photo of the lab paper slip (optional).'}
                     </p>
 
-                    <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                      <label className="form-label" htmlFor="lab-name-select-wizard">
-                        {primaryLang === 'hi' ? 'जाँच प्रयोगशाला (Testing Lab):' : 'Testing Laboratory:'}
-                      </label>
-                      <select 
-                        id="lab-name-select-wizard"
-                        className="form-input"
-                        value={labName}
-                        onChange={(e) => setLabName(e.target.value)}
-                        style={{ height: '56px', fontSize: '1rem' }}
-                      >
-                        <option value="Demo Honey Testing Laboratory (NABL #104)">Demo Honey Testing Laboratory (NABL #104, UP)</option>
-                        <option value="National Honey Analytics & Purity Center">National Honey Analytics & Purity Center (Pune)</option>
-                        <option value="Apex Food Quality Lab">Apex Food Quality Lab (New Delhi)</option>
-                      </select>
-                    </div>
+                    <div className="lab-information">
+
+    <h3>Lab Verification</h3>
+
+    {/* Lab Name */}
+    <div className="form-group">
+        <label>Lab Name</label>
+
+        <input
+            type="text"
+            value={labName}
+            onChange={(e) => setLabName(e.target.value)}
+            placeholder="Enter laboratory name"
+        />
+    </div>
+
+    {/* ULR Number */}
+    <div className="form-group">
+        <label>ULR ID</label>
+
+        <div className="ulr-input-container">
+
+            <input
+                type="text"
+                value={ulrNumber}
+                onChange={(e) => {
+                    setUlrNumber(e.target.value);
+                    setUlrStatus(null);
+                }}
+                placeholder="Enter ULR ID"
+            />
+            {ulrStatus === "checking" && (
+    <p>Checking ULR ID...</p>
+)}
+
+{ulrStatus === "verified" && (
+    <p>✓ ULR ID verified</p>
+)}
+
+{ulrStatus === "invalid" && (
+    <p>✕ ULR ID not found</p>
+)}
+
+            <button
+                type="button"
+              onClick={handleVerifyULR}
+            >
+                Verify
+            </button>
+
+        </div>
+    </div>
+
+</div>
 
                     {/* Big Camera-Icon Button for Taking Paper Photo */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
