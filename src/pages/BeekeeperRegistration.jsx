@@ -8,24 +8,24 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
-  const handleVerify = async (idToVerify) => {
+const handleVerify = async (idToVerify) => {
     const rawId = idToVerify || beekeeperId;
     const trimmedId = rawId.trim().toUpperCase();
-    const registryEntry = BEEKEEPER_REGISTRY[trimmedId];
 
-  if (!trimmedId) {
-    setVerificationResult('not_found');
-    setRecord(null);
-    return;
-  }
+    if (!trimmedId) {
+      setVerificationResult('not_found');
+      setRecord(null);
+      return;
+    }
 
     try {
+      // Strictly query your PostgreSQL backend
       const response = await fetch(
         `http://localhost:5000/api/verify/beekeeper/${encodeURIComponent(trimmedId)}`
       );
       const result = await response.json();
 
-      if (response.ok && result.verified) {
+      if (response.ok && result.verified && result.data) {
         const verifiedRecord = {
           ...result.data,
           beekeeperId: result.data.beekeeper_id,
@@ -33,20 +33,17 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
         };
         setVerificationResult(verifiedRecord.status === 'ACTIVE' ? 'success' : 'expired');
         setRecord(verifiedRecord);
-        return;
+      } else {
+        // If backend says not found or verified: false
+        setVerificationResult('not_found');
+        setRecord(null);
       }
     } catch (error) {
-      console.warn('Beekeeper API unavailable; using synthetic registry:', error);
-    }
-
-    if (registryEntry) {
-      setVerificationResult(registryEntry.status === 'ACTIVE' ? 'success' : 'expired');
-      setRecord(registryEntry);
-    } else {
+      console.error('Database verification connection failed:', error);
       setVerificationResult('not_found');
       setRecord(null);
+      alert("Could not connect to the database server for verification.");
     }
-
   };
 
   const handleQuickFill = (id) => {

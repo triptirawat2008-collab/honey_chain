@@ -10,13 +10,7 @@ import TopDemoBar from './components/TopDemoBar';
 
 import {
   BEEKEEPER_REGISTRY,
-  LICENSE_REGISTRY,
-  INITIAL_HARVESTS,
-  INITIAL_BATCHES,
-  INITIAL_APIARIES,
-  INITIAL_HEALTH_LOGS,
-  INITIAL_REMINDERS,
-  INITIAL_HISTORY
+  LICENSE_REGISTRY
 } from './data/mockData';
 
 function App() {
@@ -28,20 +22,20 @@ function App() {
   // Low Connectivity / 2G Offline Simulation State
   const [isOffline, setIsOffline] = useState(false);
 
-  // Authenticated/Verified Users
-  const [beekeeperUser, setBeekeeperUser] = useState(BEEKEEPER_REGISTRY['BK-SYN-00001']);
-  const [companyUser, setCompanyUser] = useState(LICENSE_REGISTRY['LIC-SYN-00001']);
+  // Authenticated/Verified Users (Initialized as null so new users start clean)
+  const [beekeeperUser, setBeekeeperUser] = useState(null);
+  const [companyUser, setCompanyUser] = useState(null);
 
   // Active lookup tracking ID for the consumer view
-  const [activeTraceId, setActiveTraceId] = useState('BT-LIC001-20260825-01');
+  const [activeTraceId, setActiveTraceId] = useState('');
 
-  // Core State lists initialized with mock data
-  const [harvests, setHarvests] = useState(INITIAL_HARVESTS);
-  const [batches, setBatches] = useState(INITIAL_BATCHES);
-  const [apiaries, setApiaries] = useState(INITIAL_APIARIES);
-  const [healthLogs, setHealthLogs] = useState(INITIAL_HEALTH_LOGS);
-  const [reminders, setReminders] = useState(INITIAL_REMINDERS);
-  const [history, setHistory] = useState(INITIAL_HISTORY);
+  // Core State lists initialized as empty arrays for a fresh session
+  const [harvests, setHarvests] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [apiaries, setApiaries] = useState([]);
+  const [healthLogs, setHealthLogs] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [history, setHistory] = useState([]);
 
   return (
     <div className="honey-app-wrapper">

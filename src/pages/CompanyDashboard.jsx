@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Hexagon, LayoutDashboard, PlusCircle, Building, ShieldCheck, 
-  Layers, FileText, Activity, Check, Upload, ArrowRight,
-  LogOut, AlertCircle, Search, QrCode, Printer, CheckCircle2,
-  Users, Sparkles, Filter, ChevronRight
+Hexagon, LayoutDashboard, PlusCircle, Building, ShieldCheck, 
+Layers, FileText, Activity, Check, Upload, ArrowRight, ArrowLeft,
+LogOut, AlertCircle, Search, QrCode, Printer, CheckCircle2,
+Users, Sparkles, Filter, ChevronRight
 } from 'lucide-react';
 import { generateMockHash } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
@@ -16,7 +16,9 @@ export default function CompanyDashboard({
   
   // Step-by-step form state
   const [currentStep, setCurrentStep] = useState(1); // 1: Select Harvests, 2: Batch Info, 3: Lab Info, 4: Verifying/Done
-  const [selectedHarvestIds, setSelectedHarvestIds] = useState(['HB-BK0001-20260820-01', 'HB-BK0001-20260824-02']);
+  const [selectedHarvestIds, setSelectedHarvestIds] = useState([]); 
+  const [harvestIdInput, setHarvestIdInput] = useState('');
+  const [harvestIdError, setHarvestIdError] = useState('');
   const [productName, setProductName] = useState('Raw Organic Mustard & Multifloral Honey (500g Jar)');
   const [batchQuantity, setBatchQuantity] = useState('500 kg (1,000 Jars)');
   const [processingInfo, setProcessingInfo] = useState('Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.');
@@ -41,9 +43,43 @@ export default function CompanyDashboard({
     }
   };
 
+  const addHarvestId = async () => {
+  const id = harvestIdInput.trim();
+
+  if (!id) {
+    setHarvestIdError('Please enter a Harvest ID.');
+    return;
+  }
+
+  if (selectedHarvestIds.includes(id)) {
+    setHarvestIdError('This Harvest ID has already been added.');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/harvests/verify/${encodeURIComponent(id)}`
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.verified) {
+      setHarvestIdError('Harvest ID not found in the database.');
+      return;
+    }
+
+    setSelectedHarvestIds(prev => [...prev, id]);
+    setHarvestIdInput('');
+    setHarvestIdError('');
+  } catch (error) {
+    console.error('Harvest verification error:', error);
+    setHarvestIdError('Could not verify Harvest ID. Please check the backend.');
+  }
+};
+
   // Run mock verification workflow
-  const handleCreateBatch = (e) => {
-    e.preventDefault();
+const handleCreateBatch = async (e) => {
+      e.preventDefault();
     if (!productName || !batchQuantity) {
       alert("Please fill in the product name and batch quantity.");
       return;
@@ -59,7 +95,7 @@ export default function CompanyDashboard({
       setTimeout(() => {
         setVerificationStep(3);
         
-        setTimeout(() => {
+      setTimeout(async () => {
           setVerificationStep(4);
           
           // Generate unique batch ID
@@ -93,6 +129,40 @@ export default function CompanyDashboard({
             txRef: "0x" + generateMockHash(hashVal).substring(0, 60),
             timestamp: new Date().toISOString()
           };
+          const batchPayload = {
+  batch_id: newBatchId,
+  company_license: user.licenseNumber,
+  product_name: productName,
+  quantity_kg: parseFloat(batchQuantity) || 500,
+  final_lab_ulr: null,
+  ulr_status: "Verified",
+  manual_report_certified: !!labReportFile,
+  is_lab_certified: true,
+  harvest_ids: selectedHarvestIds
+};
+
+const response = await fetch('http://localhost:5000/api/batches', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(batchPayload)
+});
+
+const result = await response.json();
+
+if (!response.ok || !result.success) {
+  console.error("Failed to save batch:", result);
+
+  alert(
+    "Database Error: Could not save the batch.\n\n" +
+    (result.error || "Unknown database error")
+  );
+
+  setCurrentStep(3);
+  setVerificationStep(0);
+  return;
+}
 
           setBatches([newBatch, ...batches]);
           setCreatedBatchId(newBatchId);
@@ -111,20 +181,26 @@ export default function CompanyDashboard({
     }, 900);
   };
 
-  const resetBatchForm = () => {
-    setCurrentStep(1);
-    setVerificationStep(0);
-    setCreatedBatchId(null);
-    setSelectedHarvestIds(['HB-BK0001-20260820-01', 'HB-BK0001-20260824-02']);
-    setProductName('Raw Organic Mustard & Multifloral Honey (500g Jar)');
-    setBatchQuantity('500 kg (1,000 Jars)');
-    setProcessingInfo('Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.');
-    setLabReportFile(null);
-  };
+const resetBatchForm = () => {
+  setCurrentStep(1);
+  setVerificationStep(0);
+  setCreatedBatchId(null);
+
+  // Start with NO harvest selected
+  setSelectedHarvestIds([]);
+  setHarvestIdInput('');
+
+  setProductName('Raw Organic Mustard & Multifloral Honey (500g Jar)');
+  setBatchQuantity('500 kg (1,000 Jars)');
+  setProcessingInfo(
+    'Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.'
+  );
+  setLabReportFile(null);
+};
 
   // Calculate unique beekeepers from selected harvests
   const selectedHarvestDetails = harvests.filter(h => selectedHarvestIds.includes(h.harvestId));
-  const uniqueBeekeepers = new Set(selectedHarvestDetails.map(h => h.beekeeperName)).size;
+  const uniqueBeekeepers = selectedHarvestIds.length;
   const totalVolume = batches.reduce((acc, curr) => acc + (parseInt(curr.batchQuantity) || 500), 0);
 
   // Filter harvests by search query
@@ -133,7 +209,62 @@ export default function CompanyDashboard({
     h.beekeeperName.toLowerCase().includes(harvestSearch.toLowerCase()) ||
     h.flowerSources.join(' ').toLowerCase().includes(harvestSearch.toLowerCase())
   );
+useEffect(() => {
+  const loadCompanyBatches = async () => {
+    if (!user?.licenseNumber) return;
 
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/batches/${encodeURIComponent(user.licenseNumber)}`
+      );
+
+      const result = await response.json();
+
+      console.log("Batches loaded from PostgreSQL:", result);
+
+      if (result.success) {
+        const loadedBatches = result.data.map(b => ({
+          batchId: b.batch_id,
+          companyName: user.companyName,
+          licenseNumber: b.company_license,
+
+          productName: b.product_name,
+          productNameHi: b.product_name,
+
+          batchQuantity: `${b.quantity_kg} kg`,
+
+          labReference: b.final_lab_ulr || "",
+          labStatus: b.ulr_status || "Verified",
+
+          sourceHarvestIds: b.harvest_ids || [],
+
+          // These aren't currently stored in batches table
+          processingInfo: "",
+          labName: "",
+          labReportName: "",
+          blockchainStatus: "Verified",
+          blockNumber: null,
+          hash: "",
+          previousHash: "",
+          txRef: "",
+
+          createdDate: b.created_at
+            ? new Date(b.created_at).toISOString().split('T')[0]
+            : "",
+
+          timestamp: b.created_at || ""
+        }));
+
+        setBatches(loadedBatches);
+      }
+
+    } catch (error) {
+      console.error("Error loading company batches:", error);
+    }
+  };
+
+  loadCompanyBatches();
+}, [user?.licenseNumber]);
   return (
     <div className="dashboard-layout">
       {/* Sidebar */}
@@ -387,43 +518,165 @@ export default function CompanyDashboard({
                       <div className="provenance-counter-badge">
                         ✨ {primaryLang === 'hi' 
                           ? `${selectedHarvestIds.length} शहद बैच चयनित (${uniqueBeekeepers} किसानों से)` 
-                          : `${selectedHarvestIds.length} Harvests Selected (${uniqueBeekeepers} Beekeepers)`}
+                          : `${selectedHarvestIds.length} Harvests Added`}
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '340px', overflowY: 'auto' }}>
-                      {harvests.map(h => {
-                        const isChecked = selectedHarvestIds.includes(h.harvestId);
-                        return (
-                          <div 
-                            key={h.harvestId}
-                            className={`harvest-select-card ${isChecked ? 'selected' : ''}`}
-                            onClick={() => toggleHarvestSelection(h.harvestId)}
-                          >
-                            <input 
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                            />
-                            
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <strong style={{ fontSize: '1rem', color: 'var(--color-text-main)' }}>
-                                  🧑‍🌾 {h.beekeeperName} ({h.state})
-                                </strong>
-                                <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '0.75rem' }}>
-                                  ✓ Verified Origin
-                                </span>
-                              </div>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
-                                ID: <code style={{ color: 'var(--color-primary-dark)' }}>{h.harvestId}</code> | Flora: <strong>{h.flowerSources.join('/')}</strong> | Extraction: {h.harvestDate}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+<div style={{ marginTop: '1rem' }}>
+
+  {/* Harvest ID Input */}
+  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
+
+    <input
+      type="text"
+      className="form-input"
+      placeholder="Enter Harvest ID (e.g. HB-BK0001-20260820-01)"
+      value={harvestIdInput}
+      onChange={(e) => {
+        setHarvestIdInput(e.target.value);
+        setHarvestIdError('');
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addHarvestId();
+        }
+      }}
+      style={{
+        height: '52px',
+        fontFamily: 'monospace',
+        flex: 1
+      }}
+    />
+
+    <button
+      type="button"
+      className="btn btn-green"
+      onClick={addHarvestId}
+      style={{ minWidth: '150px' }}
+    >
+      + Add Harvest
+    </button>
+
+  </div>
+
+  {/* Error */}
+  {harvestIdError && (
+    <div
+      style={{
+        marginTop: '0.75rem',
+        padding: '0.75rem',
+        backgroundColor: '#FEF2F2',
+        color: '#B91C1C',
+        borderRadius: '8px',
+        fontSize: '0.9rem',
+        fontWeight: 600
+      }}
+    >
+      ⚠️ {harvestIdError}
+    </div>
+  )}
+
+  {/* Added Harvest IDs */}
+  <div style={{ marginTop: '1.5rem' }}>
+
+    <h4 style={{
+      marginBottom: '0.75rem',
+      fontSize: '1rem',
+      fontWeight: 800
+    }}>
+      Added Harvest IDs
+    </h4>
+
+    {selectedHarvestIds.length === 0 ? (
+
+      <div
+        style={{
+          padding: '1.5rem',
+          textAlign: 'center',
+          border: '1px dashed var(--color-border)',
+          borderRadius: '10px',
+          color: 'var(--color-text-muted)',
+          backgroundColor: '#FDFBF7'
+        }}
+      >
+        No Harvest IDs added yet.
+        <br />
+        Enter a Harvest ID above to add it.
+      </div>
+
+    ) : (
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.6rem'
+      }}>
+
+        {selectedHarvestIds.map((id) => (
+
+          <div
+            key={id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1rem',
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              borderRadius: '8px'
+            }}
+          >
+
+            <div>
+              <span style={{
+                fontSize: '0.75rem',
+                color: '#15803D',
+                fontWeight: 700
+              }}>
+                ✓ VERIFIED HARVEST
+              </span>
+
+              <div style={{
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                marginTop: '0.2rem'
+              }}>
+                {id}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedHarvestIds(
+                  prev => prev.filter(hid => hid !== id)
+                );
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#B91C1C',
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: '1.1rem'
+              }}
+              title="Remove Harvest ID"
+            >
+              ✕
+            </button>
+
+          </div>
+
+        ))}
+
+      </div>
+
+    )}
+
+  </div>
+
+</div>
                   </div>
 
                   <div className="wizard-actions">
@@ -433,11 +686,10 @@ export default function CompanyDashboard({
                     <button 
                       className="btn btn-green btn-wizard-next" 
                       onClick={() => {
-                        if (selectedHarvestIds.length === 0) {
-                          alert("Please select at least 1 harvest source.");
-                          return;
-                        }
-                        setCurrentStep(2);
+                     if (selectedHarvestIds.length === 0) {
+                     alert("Please enter at least one valid Harvest ID.");
+                     return;
+}                        setCurrentStep(2);
                       }}
                     >
                       <span>{primaryLang === 'hi' ? 'बैच विवरण दर्ज करें (Next)' : 'Continue to Batch Info'}</span>

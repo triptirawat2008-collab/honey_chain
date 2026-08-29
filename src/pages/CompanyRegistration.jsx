@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, ShieldCheck, ArrowRight, Search } from 'lucide-react';
 import SpeakerButton from '../components/SpeakerButton';
-import { LICENSE_REGISTRY } from '../data/mockData';
 
 export default function CompanyRegistration({ setView, setCompanyUser, primaryLang = 'hi' }) {
   const [licenseNumber, setLicenseNumber] = useState('LIC-SYN-00001');
@@ -18,36 +17,35 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
       return;
     }
 
-    const registryEntry = LICENSE_REGISTRY[trimmedLicense];
-
     try {
+      // Query PostgreSQL database route directly
       const response = await fetch(
         `http://localhost:5000/api/verify/license/${encodeURIComponent(trimmedLicense)}`
       );
       const result = await response.json();
 
-      if (response.ok && result.verified) {
+      if (response.ok && result.verified && result.data) {
         const verifiedRecord = {
           ...result.data,
           licenseNumber: result.data.license_number,
           companyName: result.data.company_name,
-          status: String(result.data.license_status || '').trim().toUpperCase()
+          fssaiNumber: result.data.fssai_number || result.data.license_number,
+          state: result.data.state,
+          district: result.data.district || '',
+          status: String(result.data.license_status || 'ACTIVE').trim().toUpperCase()
         };
         setVerificationResult(verifiedRecord.status === 'ACTIVE' ? 'success' : 'expired');
         setRecord(verifiedRecord);
-        return;
+      } else {
+        // Reject any license not found in the database
+        setVerificationResult('not_found');
+        setRecord(null);
       }
     } catch (error) {
-      console.warn('License API unavailable; using synthetic registry:', error);
-    }
-
-    if (registryEntry) {
-      const status = String(registryEntry.status || '').trim().toUpperCase();
-      setVerificationResult(status === 'ACTIVE' ? 'success' : 'expired');
-      setRecord(registryEntry);
-    } else {
+      console.error('Database verification error:', error);
       setVerificationResult('not_found');
       setRecord(null);
+      alert("Could not connect to the database server.");
     }
   };
 
@@ -130,6 +128,14 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
               >
                 🟡 LIC-SYN-00003 (PureSweet - Expired ⚠️)
               </button>
+              <button 
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleQuickFill('LIC-SYN-99999')}
+                style={{ fontSize: '0.82rem', borderColor: 'var(--color-danger)' }}
+              >
+                🔴 LIC-SYN-99999 (Invalid ✕)
+              </button>
             </div>
           </div>
 
@@ -181,11 +187,11 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
                 </div>
                 <div className="verify-data-row">
                   <span className="verify-data-label">{primaryLang === 'hi' ? 'FSSAI नंबर:' : 'FSSAI Number:'}</span>
-                  <span className="verify-data-value">{record.fssaiNumber}</span>
+                  <span className="verify-data-value">{record.fssaiNumber || record.licenseNumber}</span>
                 </div>
                 <div className="verify-data-row">
                   <span className="verify-data-label">{primaryLang === 'hi' ? 'राज्य / अधिकार क्षेत्र:' : 'Jurisdiction State:'}</span>
-                  <span className="verify-data-value">{record.state} ({record.district})</span>
+                  <span className="verify-data-value">{record.state} {record.district ? `(${record.district})` : ''}</span>
                 </div>
                 <div className="verify-data-row">
                   <span className="verify-data-label">{primaryLang === 'hi' ? 'लाइसेंस स्थिति:' : 'License Status:'}</span>
@@ -226,8 +232,8 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
                   <span className="verify-data-value" style={{ fontWeight: 700 }}>{record.companyName}</span>
                 </div>
                 <div className="verify-data-row">
-                  <span className="verify-data-label">{primaryLang === 'hi' ? 'वैधता तिथि:' : 'Valid Till:'}</span>
-                  <span className="verify-data-value">{record.validTill}</span>
+                  <span className="verify-data-label">{primaryLang === 'hi' ? 'राज्य:' : 'State:'}</span>
+                  <span className="verify-data-value">{record.state}</span>
                 </div>
                 <div className="verify-data-row">
                   <span className="verify-data-label">{primaryLang === 'hi' ? 'स्थिति:' : 'Status:'}</span>
@@ -261,7 +267,7 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
               <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
                 <strong>{primaryLang === 'hi' ? 'प्रोटोटाइप सूचना:' : 'Prototype Notice:'}</strong> {primaryLang === 'hi'
                   ? 'यह सत्यापन FSSAI FosCos व MoFPI पोर्टल सिमुलेशन पर आधारित है।'
-                  : 'License checks query synthetic regulatory databases representing future FSSAI FosCos integration.'}
+                  : 'License checks query regulatory databases representing future FSSAI FosCos integration.'}
               </div>
             </div>
           </div>
