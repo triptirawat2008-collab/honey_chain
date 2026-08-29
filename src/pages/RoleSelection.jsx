@@ -116,15 +116,6 @@ export default function RoleSelection({ setView, primaryLang = 'hi' }) {
           </div>
         </div>
 
-        {/* Prototype trust notice */}
-        <div style={{ marginTop: '2.5rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-            <ShieldCheck size={14} style={{ color: 'var(--color-secondary)' }} />
-            {primaryLang === 'hi' 
-              ? 'प्रोटोटाइप मोड: दोनों वर्गों में जाने के लिए बिना किसी पासवर्ड के सीधा सत्यापन उपलब्ध है।'
-              : 'Prototype Mode: Quick one-click verification samples are available for both account types.'}
-          </span>
-        </div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { BEEKEEPER_REGISTRY } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
 
 export default function BeekeeperRegistration({ setView, setBeekeeperUser, primaryLang = 'hi' }) {
-  const [beekeeperId, setBeekeeperId] = useState('BK-SYN-00001');
+  const [beekeeperId, setBeekeeperId] = useState('');
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
@@ -49,11 +49,6 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
 
   };
 
-  const handleQuickFill = (id) => {
-    setBeekeeperId(id);
-    handleVerify(id);
-  };
-
   const handleContinue = () => {
     if (record && verificationResult === 'success') {
       setBeekeeperUser(record);
@@ -81,8 +76,8 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
               </h2>
               <SpeakerButton 
                 text={primaryLang === 'hi' 
-                  ? "किसान सत्यापन। अपनी मधुक्रांति या किसान आईडी दर्ज करें। परीक्षण के लिए नीचे दिए गए हरे बटन पर क्लिक करें।"
-                  : "Beekeeper verification. Enter your Madhukranti or Beekeeper ID. For demo, click any sample button below."}
+                  ? "किसान सत्यापन। अपनी मधुक्रांति या किसान आईडी दर्ज करें और सत्यापन बटन पर क्लिक करें।"
+                  : "Beekeeper verification. Enter your Madhukranti or Beekeeper ID and click the verify button."}
                 lang={primaryLang}
                 size={20}
               />
@@ -98,47 +93,6 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
               : 'Enter your official Madhukranti or National Beekeeper ID to access your hive records.'}
           </p>
 
-          {/* Quick Demo Test Pills */}
-          <div style={{ backgroundColor: '#F9FAFB', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-              ⚡ {primaryLang === 'hi' ? 'परीक्षण के लिए एक क्लिक में चुनें (1-Click Sample IDs):' : 'Click a sample ID to test:'}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('BK-SYN-00001')}
-                style={{ fontSize: '0.82rem', borderColor: 'var(--color-secondary)' }}
-              >
-                🟢 BK-SYN-00001 (रवि कुमार - Active ✅)
-              </button>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('BK-SYN-00002')}
-                style={{ fontSize: '0.82rem' }}
-              >
-                🟢 BK-SYN-00002 (अमित सिंह - Active ✅)
-              </button>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('BK-SYN-00003')}
-                style={{ fontSize: '0.82rem', borderColor: 'var(--color-warning)' }}
-              >
-                🟡 BK-SYN-00003 (नेहा शर्मा - Expired ⚠️)
-              </button>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('BK-SYN-99999')}
-                style={{ fontSize: '0.82rem', borderColor: 'var(--color-danger)' }}
-              >
-                🔴 BK-SYN-99999 (Invalid ✕)
-              </button>
-            </div>
-          </div>
-
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="form-label" htmlFor="beekeeper-id-input" style={{ fontSize: '1rem', fontWeight: 700 }}>
               {primaryLang === 'hi' ? 'किसान / मधुक्रांति आईडी (Beekeeper ID)' : 'Beekeeper ID / Madhukranti ID'}
@@ -148,7 +102,7 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
                 id="beekeeper-id-input"
                 type="text" 
                 className="form-input" 
-                placeholder="Example: BK-SYN-00001" 
+                placeholder="Enter Beekeeper ID / Madhukranti ID" 
                 value={beekeeperId}
                 onChange={(e) => setBeekeeperId(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleVerify(); }}
@@ -267,23 +221,11 @@ export default function BeekeeperRegistration({ setView, setBeekeeperUser, prima
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
                 {primaryLang === 'hi'
-                  ? 'यह आईडी सिमुलेटेड डेटाबेस में नहीं है। परीक्षण के लिए ऊपर दिए गए "BK-SYN-00001" बटन को दबाएं।'
-                  : 'This ID does not exist in the prototype registry. Click the "BK-SYN-00001" button above to test.'}
+                  ? 'यह आईडी डेटाबेस में नहीं मिला है। कृपया सही मधुक्रांति / किसान आईडी दर्ज करके पुनः प्रयास करें।'
+                  : 'This ID was not found in the registry. Please check the number and try again.'}
               </p>
             </div>
           )}
-
-          {/* Prototype disclaimer */}
-          <div className="disclaimer-box" style={{ marginTop: '2rem' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-              <ShieldCheck size={18} style={{ color: 'var(--color-primary-dark)', flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                <strong>{primaryLang === 'hi' ? 'प्रोटोटाइप सूचना:' : 'Prototype Notice:'}</strong> {primaryLang === 'hi'
-                  ? 'यह पहचान सत्यापन भविष्य में राष्ट्रीय मधुमक्खी बोर्ड (NBB) / मधुक्रांति पोर्टल एपीआई से सीधे जुड़ने के लिए तैयार किया गया है।'
-                  : 'Beekeeper identity checks query an in-memory synthetic database simulating future integration with the National Bee Board / Madhukranti registry.'}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

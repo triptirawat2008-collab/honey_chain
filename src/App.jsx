@@ -9,8 +9,6 @@ import ConsumerTraceability from './pages/ConsumerTraceability';
 import TopDemoBar from './components/TopDemoBar';
 
 import {
-  BEEKEEPER_REGISTRY,
-  LICENSE_REGISTRY,
   INITIAL_HARVESTS,
   INITIAL_BATCHES,
   INITIAL_APIARIES,
@@ -29,8 +27,8 @@ function App() {
   const [isOffline, setIsOffline] = useState(false);
 
   // Authenticated/Verified Users
-  const [beekeeperUser, setBeekeeperUser] = useState(BEEKEEPER_REGISTRY['BK-SYN-00001']);
-  const [companyUser, setCompanyUser] = useState(LICENSE_REGISTRY['LIC-SYN-00001']);
+  const [beekeeperUser, setBeekeeperUser] = useState(null);
+  const [companyUser, setCompanyUser] = useState(null);
 
   // Active lookup tracking ID for the consumer view
   const [activeTraceId, setActiveTraceId] = useState('BT-LIC001-20260825-01');
@@ -46,18 +44,11 @@ function App() {
   return (
     <div className="honey-app-wrapper">
       {/* Top Persistent SIH Demo Navigation Bar */}
-      <TopDemoBar 
-        view={view}
-        setView={setView}
-        setBeekeeperUser={setBeekeeperUser}
-        setCompanyUser={setCompanyUser}
-        setActiveTraceId={setActiveTraceId}
+      <TopDemoBar
         isOffline={isOffline}
         setIsOffline={setIsOffline}
         primaryLang={primaryLang}
         setPrimaryLang={setPrimaryLang}
-        BEEKEEPER_REGISTRY={BEEKEEPER_REGISTRY}
-        LICENSE_REGISTRY={LICENSE_REGISTRY}
       />
 
       {/* State-based Navigation Router */}

@@ -4,7 +4,7 @@ import SpeakerButton from '../components/SpeakerButton';
 import { LICENSE_REGISTRY } from '../data/mockData';
 
 export default function CompanyRegistration({ setView, setCompanyUser, primaryLang = 'hi' }) {
-  const [licenseNumber, setLicenseNumber] = useState('LIC-SYN-00001');
+  const [licenseNumber, setLicenseNumber] = useState('');
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
@@ -51,11 +51,6 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
     }
   };
 
-  const handleQuickFill = (lic) => {
-    setLicenseNumber(lic);
-    handleVerify(lic);
-  };
-
   const handleContinue = () => {
     if (record && verificationResult === 'success') {
       setCompanyUser(record);
@@ -100,39 +95,6 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
               : 'Verify commercial food processor license credentials to manage batches and bottling.'}
           </p>
 
-          {/* Quick Demo Test Pills */}
-          <div style={{ backgroundColor: '#F9FAFB', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-              ⚡ {primaryLang === 'hi' ? 'परीक्षण के लिए एक क्लिक में चुनें (1-Click Sample Licenses):' : 'Click a sample license to test:'}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('LIC-SYN-00001')}
-                style={{ fontSize: '0.82rem', borderColor: 'var(--color-secondary)' }}
-              >
-                🟢 LIC-SYN-00001 (ABC Honey - Active ✅)
-              </button>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('LIC-SYN-00002')}
-                style={{ fontSize: '0.82rem' }}
-              >
-                🟢 LIC-SYN-00002 (Himalayan Organics ✅)
-              </button>
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleQuickFill('LIC-SYN-00003')}
-                style={{ fontSize: '0.82rem', borderColor: 'var(--color-warning)' }}
-              >
-                🟡 LIC-SYN-00003 (PureSweet - Expired ⚠️)
-              </button>
-            </div>
-          </div>
-
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="form-label" htmlFor="license-number-input" style={{ fontSize: '1rem', fontWeight: 700 }}>
               {primaryLang === 'hi' ? 'FSSAI / व्यापार लाइसेंस संख्या' : 'FSSAI / Business License Number'}
@@ -141,7 +103,7 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
               id="license-number-input"
               type="text" 
               className="form-input" 
-              placeholder="Example: LIC-SYN-00001" 
+              placeholder="Enter FSSAI / Business License Number" 
               value={licenseNumber}
               onChange={(e) => setLicenseNumber(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleVerify(); }}
@@ -254,17 +216,6 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
             </div>
           )}
 
-          {/* Prototype disclaimer */}
-          <div className="disclaimer-box" style={{ marginTop: '2rem' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-              <ShieldCheck size={18} style={{ color: 'var(--color-secondary-dark)', flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                <strong>{primaryLang === 'hi' ? 'प्रोटोटाइप सूचना:' : 'Prototype Notice:'}</strong> {primaryLang === 'hi'
-                  ? 'यह सत्यापन FSSAI FosCos व MoFPI पोर्टल सिमुलेशन पर आधारित है।'
-                  : 'License checks query synthetic regulatory databases representing future FSSAI FosCos integration.'}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

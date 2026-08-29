@@ -61,35 +61,37 @@ export default function ConsumerTraceability({
       <div className="consumer-layout">
         {/* Consumer Header */}
         <header className="consumer-header">
-          <div 
-            className="logo-container" 
-            onClick={() => setView('landing')} 
-            style={{ cursor: 'pointer' }}
-            role="button"
-            tabIndex={0}
-          >
-            <span className="logo-icon">
-              <Hexagon size={32} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-text-main)', lineHeight: 1.1 }}>
-                HoneyChain
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setView('landing')}
+              style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <ArrowLeft size={16} />
+              <span>{t('backToHomeBtn')}</span>
+            </button>
+
+            <div 
+              className="logo-container" 
+              onClick={() => setView('landing')} 
+              style={{ cursor: 'pointer' }}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="logo-icon">
+                <Hexagon size={32} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
               </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--color-secondary-dark)', fontWeight: 700 }}>
-                {primaryLang === 'hi' ? 'सत्यापित भारतीय शहद पोर्टल' : 'National Honey Verification Portal'}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-text-main)', lineHeight: 1.1 }}>
+                  HoneyChain
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-secondary-dark)', fontWeight: 700 }}>
+                  {primaryLang === 'hi' ? 'सत्यापित भारतीय शहद पोर्टल' : 'National Honey Verification Portal'}
+                </span>
+              </div>
             </div>
           </div>
-
-          <button 
-            type="button"
-            className="btn btn-secondary btn-sm" 
-            onClick={() => setView('landing')}
-            style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <ArrowLeft size={16} /> 
-            <span>{t('backToHomeBtn')}</span>
-          </button>
         </header>
 
         <div className="consumer-container">
@@ -231,35 +233,37 @@ export default function ConsumerTraceability({
     <div className="consumer-layout">
       {/* Consumer Header */}
       <header className="consumer-header">
-        <div 
-          className="logo-container" 
-          onClick={() => setView('landing')} 
-          style={{ cursor: 'pointer' }}
-          role="button"
-          tabIndex={0}
-        >
-          <span className="logo-icon">
-            <Hexagon size={32} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-text-main)', lineHeight: 1.1 }}>
-              HoneyChain
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setView('landing')}
+            style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <ArrowLeft size={16} />
+            <span>{t('backToHomeBtn')}</span>
+          </button>
+
+          <div 
+            className="logo-container" 
+            onClick={() => setView('landing')} 
+            style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="logo-icon">
+              <Hexagon size={32} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
             </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-secondary-dark)', fontWeight: 700 }}>
-              {primaryLang === 'hi' ? 'सत्यापित भारतीय शहद पोर्टल' : 'National Honey Verification Portal'}
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-text-main)', lineHeight: 1.1 }}>
+                HoneyChain
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-secondary-dark)', fontWeight: 700 }}>
+                {primaryLang === 'hi' ? 'सत्यापित भारतीय शहद पोर्टल' : 'National Honey Verification Portal'}
+              </span>
+            </div>
           </div>
         </div>
-
-        <button 
-          type="button"
-          className="btn btn-secondary btn-sm" 
-          onClick={() => setView('landing')}
-          style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-        >
-          <ArrowLeft size={16} /> 
-          <span>{t('backToHomeBtn')}</span>
-        </button>
       </header>
 
       <div className="consumer-container">
@@ -655,10 +659,9 @@ export default function ConsumerTraceability({
 
       </div>
 
-      {/* Floating Demo Tamper Control Widget for SIH Evaluators */}
       <div className="tamper-control-float">
         <div className="tamper-control-title">
-          🛠️ SIH 2026 Demo Tamper Testing
+          🛠️ Demo Tamper Testing
         </div>
         <label className="tamper-toggle-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 700, margin: '0.4rem 0' }}>
           <input 

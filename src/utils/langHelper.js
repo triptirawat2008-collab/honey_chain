@@ -4,8 +4,8 @@
 export const TRANSLATIONS = {
   // Common Navigation & Demo
   demoBarTitle: {
-    en: "SIH 2026 Demo Bar",
-    hi: "स्मार्ट इंडिया हैकाथॉन डेमो बार"
+    en: "HoneyChain Demo Bar",
+    hi: "हनीचेन डेमो बार"
   },
   switchToFarmer: {
     en: "🌾 Beekeeper View",
@@ -73,29 +73,17 @@ export const TRANSLATIONS = {
     en: "Verify Honey",
     hi: "शहद की जाँच करें"
   },
-  sampleBatchesHint: {
-    en: "Try a certified sample batch:",
-    hi: "नमूना बैच नंबर से जाँचें:"
-  },
   qrModalTitle: {
     en: "Scan Honey Jar QR Code",
     hi: "शहद जार QR कोड स्कैन करें"
   },
   qrModalSubtitle: {
-    en: "Point your phone camera at the QR code on your honey bottle, upload an image, or click a certified sample.",
-    hi: "अपनी शहद की बोतल पर छपे QR कोड की फोटो अपलोड करें या नीचे दिए गए प्रमाणित नमूने पर क्लिक करें।"
+    en: "Point your phone camera at the QR code on your honey bottle or upload an image.",
+    hi: "अपनी शहद की बोतल पर छपे QR कोड को कैमरे से देखें या फोटो अपलोड करें।"
   },
   uploadQrImageBtn: {
     en: "Upload QR Code Image",
     hi: "QR कोड फोटो अपलोड करें"
-  },
-  sampleJarScanBtn: {
-    en: "Scan Sample Jar (BT-LIC001)",
-    hi: "नमूना जार स्कैन करें (BT-LIC001)"
-  },
-  sampleSingleHarvestBtn: {
-    en: "Scan Farmer Direct Jar (HB-BK0001)",
-    hi: "किसान डायरेक्ट जार स्कैन करें (HB-BK0001)"
   },
   closeBtn: {
     en: "Close",
@@ -124,7 +112,7 @@ export const TRANSLATIONS = {
     hi: "हमें यह बैच नंबर नहीं मिला। कृपया अपने शहद के डिब्बे पर छपा नंबर देखकर दोबारा प्रयास करें।"
   },
   errorNotFoundTts: {
-    en: "We could not find this batch number. Please check the label on your honey jar and try again, or click one of our verified sample batches.",
+    en: "We could not find this batch number. Please check the label on your honey jar and try again.",
     hi: "हमें यह बैच नंबर नहीं मिला। कृपया अपने शहद के डिब्बे पर लिखा नंबर जाँचकर पुनः प्रयास करें।"
   },
   errorQrReadFail: {
@@ -316,67 +304,97 @@ export function stopSpeaking() {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
+      window.speechSynthesis.onvoiceschanged = null;
     } catch (e) {
       console.warn('Error cancelling speech:', e);
     }
   }
 }
 
+function getVoiceForLang(lang, voices = []) {
+  if (!voices.length) return null;
+
+  const normalizedLang = String(lang || '').toLowerCase();
+
+  if (normalizedLang === 'hi' || normalizedLang === 'hi-in' || normalizedLang.startsWith('hi')) {
+    return voices.find(v => {
+      const voiceLang = (v.lang || '').toLowerCase();
+      return voiceLang === 'hi-in' || voiceLang.startsWith('hi');
+    }) || null;
+  }
+
+  return voices.find(v => {
+    const voiceLang = (v.lang || '').toLowerCase();
+    return voiceLang === 'en-in' || voiceLang.startsWith('en');
+  }) || null;
+}
+
 /**
  * Text-to-Speech playback helper
- * Speaks out in Hindi or Indian English using Web Speech API
+ * Speaks out in Hindi or English using Web Speech API
  */
 export function speakText(text, lang = 'hi', onStart = null, onEnd = null) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    console.warn('Speech synthesis not supported on this browser.');
     if (onEnd) onEnd();
     return;
   }
 
   try {
-    // Cancel any ongoing speech first
-    window.speechSynthesis.cancel();
-
-    if (!text || text.trim() === '') {
+    const sanitizedText = (text || '').trim();
+    if (!sanitizedText) {
       if (onEnd) onEnd();
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.92; // slightly slower for clear listening
-    utterance.pitch = 1.0;
+    const speak = () => {
+      window.speechSynthesis.cancel();
 
-    const voices = window.speechSynthesis.getVoices();
-    if (lang === 'hi') {
-      const hindiVoice = voices.find(
-        v => v.lang.includes('hi') || v.name.includes('Hindi') || v.lang.includes('hi-IN') || v.name.includes('Lekha')
-      );
-      if (hindiVoice) utterance.voice = hindiVoice;
-      utterance.lang = 'hi-IN';
-    } else {
-      const indianEngVoice = voices.find(
-        v => v.lang === 'en-IN' || v.name.includes('India') || v.name.includes('Veena') || v.name.includes('Rishi')
-      );
-      if (indianEngVoice) utterance.voice = indianEngVoice;
-      utterance.lang = 'en-IN';
+      const utterance = new SpeechSynthesisUtterance(sanitizedText);
+      utterance.rate = 0.92;
+      utterance.pitch = 1.0;
+      const normalizedLang = String(lang || '').toLowerCase();
+      utterance.lang = normalizedLang === 'hi' || normalizedLang === 'hi-in' || normalizedLang.startsWith('hi') ? 'hi-IN' : 'en-IN';
+
+      const voices = window.speechSynthesis.getVoices();
+      const selectedVoice = getVoiceForLang(lang, voices);
+
+      if (selectedVoice && (normalizedLang === 'hi' || normalizedLang === 'hi-in' || normalizedLang.startsWith('hi'))) {
+        utterance.voice = selectedVoice;
+      } else if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+
+      utterance.onstart = () => {
+        if (onStart) onStart();
+      };
+
+      utterance.onend = () => {
+        if (onEnd) onEnd();
+      };
+
+      utterance.onerror = () => {
+        if (onEnd) onEnd();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const initialVoices = window.speechSynthesis.getVoices();
+    if (initialVoices.length > 0) {
+      speak();
+      return;
     }
 
-    utterance.onstart = () => {
-      if (onStart) onStart();
+    const handleVoicesReady = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        window.speechSynthesis.onvoiceschanged = null;
+        speak();
+      }
     };
 
-    utterance.onend = () => {
-      if (onEnd) onEnd();
-    };
-
-    utterance.onerror = (e) => {
-      console.warn('SpeechSynthesis error:', e);
-      if (onEnd) onEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.onvoiceschanged = handleVoicesReady;
   } catch (err) {
-    console.warn('TTS playback error:', err);
     if (onEnd) onEnd();
   }
 }

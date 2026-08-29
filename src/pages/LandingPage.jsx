@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Hexagon, ArrowRight, ShieldCheck, Search,
-  Upload, QrCode, ChevronRight, AlertCircle
+  Upload, QrCode, ChevronRight, AlertCircle, Camera
 } from 'lucide-react';
 import SpeakerButton from '../components/SpeakerButton';
 import { TRANSLATIONS } from '../utils/langHelper';
@@ -11,8 +11,44 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
   const [inputError, setInputError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const cameraScanFrameRef = useRef(null);
 
   const t = (key) => TRANSLATIONS[key]?.[primaryLang] || TRANSLATIONS[key]?.['en'] || key;
+
+  const stopCameraStream = () => {
+    if (cameraScanFrameRef.current) {
+      cancelAnimationFrame(cameraScanFrameRef.current);
+      cameraScanFrameRef.current = null;
+    }
+
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setIsCameraOpen(false);
+  };
+
+  const processQrResult = (decodedValue) => {
+    const normalized = String(decodedValue || '').trim();
+    setIsScanning(true);
+    setShowQrModal(false);
+    stopCameraStream();
+
+    setTimeout(() => {
+      setIsScanning(false);
+      setActiveTraceId(normalized || 'BT-LIC001-20260825-01');
+      setView('consumer-trace');
+    }, 900);
+  };
 
   const handleManualVerify = (batchToVerify) => {
     const raw = batchToVerify !== undefined ? batchToVerify : manualBatchId;
@@ -32,25 +68,83 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Simulate scanning verification delay
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setShowQrModal(false);
-      setActiveTraceId('BT-LIC001-20260825-01');
-      setView('consumer-trace');
-    }, 1000);
+    processQrResult('BT-LIC001-20260825-01');
   };
 
-  const handleDirectScanSample = (sampleId = 'BT-LIC001-20260825-01') => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setShowQrModal(false);
-      setActiveTraceId(sampleId);
-      setView('consumer-trace');
-    }, 900);
+  const startCameraScan = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError(primaryLang === 'hi' ? 'कैमरा उपलब्ध नहीं है। कृपया फोटो अपलोड करें।' : 'Camera is not available on this device. Please upload an image instead.');
+      return;
+    }
+
+    try {
+      setCameraError('');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      cameraStreamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setIsCameraOpen(true);
+
+      const detectQrFromCamera = async () => {
+        if (!showQrModal || !videoRef.current || !cameraStreamRef.current) {
+          return;
+        }
+
+        const video = videoRef.current;
+
+        if (video.readyState < 2) {
+          cameraScanFrameRef.current = requestAnimationFrame(detectQrFromCamera);
+          return;
+        }
+
+        try {
+          if ('BarcodeDetector' in window) {
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            const barcodes = await detector.detect(video);
+            const qrValue = barcodes?.[0]?.rawValue;
+            if (qrValue) {
+              processQrResult(qrValue);
+              return;
+            }
+          }
+        } catch (error) {
+          // Ignore detection failures and continue scanning until the user closes the modal.
+        }
+
+        cameraScanFrameRef.current = requestAnimationFrame(detectQrFromCamera);
+      };
+
+      cameraScanFrameRef.current = requestAnimationFrame(detectQrFromCamera);
+    } catch (error) {
+      setIsCameraOpen(false);
+      setCameraError(primaryLang === 'hi' ? 'कैमरा अनुमति अस्वीकृत। कृपया फोटो अपलोड करें या अनुमति दें।' : 'Camera permission was denied or unavailable. Please upload an image instead.');
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      stopCameraStream();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showQrModal) {
+      stopCameraStream();
+      setCameraError('');
+    }
+  }, [showQrModal]);
 
   return (
     <div className="app-container">
@@ -82,17 +176,6 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
             <li>
               <button 
                 type="button"
-                className="btn btn-outline-green" 
-                onClick={() => setShowQrModal(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
-              >
-                <QrCode size={18} />
-                <span>{t('scanQrBtn')}</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                type="button"
                 className="btn btn-primary" 
                 onClick={() => setView('role-selection')}
                 style={{ fontWeight: 800, padding: '0.75rem 1.3rem' }}
@@ -108,11 +191,6 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
       {/* Hero Section with Primary Consumer Verification */}
       <section className="hero-section">
         <div className="hero-content">
-          <div className="hero-badge">
-            <ShieldCheck size={18} />
-            <span>Smart India Hackathon 2026 Prototype • राष्ट्रीय मधुमक्खी बोर्ड मॉडल</span>
-          </div>
-
           <h1 className="hero-title" style={{ marginBottom: '0.75rem' }}>
             {primaryLang === 'hi' ? (
               <>
@@ -223,58 +301,8 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               </div>
             </div>
 
-            {/* Quick Sample Test Chips */}
-            <div className="sample-batch-chips">
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>
-                {t('sampleBatchesHint')}
-              </span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                <button 
-                  type="button"
-                  className="sample-chip-btn"
-                  onClick={() => handleManualVerify('BT-LIC001-20260825-01')}
-                  title="Verify Sample Batch BT-LIC001"
-                >
-                  🏷️ BT-LIC001-20260825-01 ({primaryLang === 'hi' ? 'मास्टर बैच' : 'Master Batch'})
-                </button>
-                <button 
-                  type="button"
-                  className="sample-chip-btn"
-                  onClick={() => handleManualVerify('HB-BK0001-20260820-01')}
-                  title="Verify Sample Harvest HB-BK0001"
-                >
-                  🌿 HB-BK0001-20260820-01 ({primaryLang === 'hi' ? 'किसान डायरेक्ट' : 'Farmer Direct'})
-                </button>
-                <button 
-                  type="button"
-                  className="sample-chip-btn chip-btn-fail"
-                  onClick={() => handleManualVerify('INVALID-BATCH-999')}
-                  title="Test Invalid Batch Error Handling"
-                >
-                  ❌ {primaryLang === 'hi' ? 'अमान्य बैच परीक्षण' : 'Test Invalid ID'}
-                </button>
-              </div>
-            </div>
           </div>
 
-          {/* Secondary Quick Role Navigation Row */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-            <button 
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setView('role-selection')}
-              style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <span>🧑‍🌾 {primaryLang === 'hi' ? 'किसान / कंपनी लॉगिन' : 'Beekeeper & Company Portal'}</span>
-              <ArrowRight size={14} />
-            </button>
-          </div>
-
-          {/* Trust Guarantee banner */}
-          <div className="trust-pledge-banner" style={{ marginTop: '2rem' }}>
-            <span className="trust-icon">✨</span>
-            <strong>{t('trustPledge')}</strong>
-          </div>
         </div>
       </section>
 
@@ -427,20 +455,30 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               <button 
                 type="button"
                 className="btn btn-green"
-                onClick={() => handleDirectScanSample('BT-LIC001-20260825-01')}
-                style={{ padding: '0.9rem', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                onClick={startCameraScan}
+                style={{ width: '100%', fontSize: '0.92rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
               >
-                <span>✨ {t('sampleJarScanBtn')}</span>
+                <Camera size={16} />
+                <span>{primaryLang === 'hi' ? '📷 कैमरा खोलें' : '📷 Open Camera'}</span>
               </button>
 
-              <button 
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleDirectScanSample('HB-BK0001-20260820-01')}
-                style={{ padding: '0.75rem', fontSize: '0.92rem', fontWeight: 700 }}
-              >
-                <span>🌾 {t('sampleSingleHarvestBtn')}</span>
-              </button>
+              {isCameraOpen && (
+                <div style={{ width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)', backgroundColor: '#111827' }}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{ width: '100%', display: 'block', maxHeight: '260px', objectFit: 'cover' }}
+                  />
+                </div>
+              )}
+
+              {cameraError && (
+                <div style={{ padding: '0.75rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-danger)', backgroundColor: '#FEF2F2', color: 'var(--color-danger)', fontSize: '0.8rem', textAlign: 'left' }}>
+                  {cameraError}
+                </div>
+              )}
 
               <div style={{ borderTop: '1px dashed var(--color-border)', paddingTop: '1rem' }}>
                 <button 
@@ -464,7 +502,11 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               <button 
                 type="button"
                 className="btn btn-secondary" 
-                onClick={() => setShowQrModal(false)}
+                onClick={() => {
+                  stopCameraStream();
+                  setShowQrModal(false);
+                  setCameraError('');
+                }}
                 style={{ marginTop: '0.25rem' }}
               >
                 {t('closeBtn')}
@@ -495,12 +537,7 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
       <footer className="footer-rural">
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
           <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.5rem' }}>
-            🍯 HoneyChain (हनीचेन) — Smart India Hackathon (SIH) 2026 Prototype
-          </p>
-          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            {primaryLang === 'hi'
-              ? 'प्रोटोटाइप सूचना: यह एक सिमुलेटेड फ्रंटएंड डेमो है जो राष्ट्रीय मधुमक्खी बोर्ड (NBB), मधुक्रांति पोर्टल और FSSAI के साथ डिजिटल एकीकरण को दर्शाता है।'
-              : 'SIH Prototype Notice: All identity registries and ledger records utilize synthetic test data simulating future Madhukranti & National Bee Board integration.'}
+            🍯 HoneyChain (हनीचेन)
           </p>
         </div>
       </footer>
