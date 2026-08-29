@@ -129,6 +129,7 @@ function App() {
       {view === 'consumer-trace' && (
         <ConsumerTraceability
           traceId={activeTraceId}
+          setActiveTraceId={setActiveTraceId}
           setView={setView}
           harvests={harvests}
           batches={batches}

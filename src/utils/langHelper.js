@@ -1,4 +1,5 @@
 // Language dictionary and Text-to-Speech (TTS) helper for HoneyChain
+// Focused on consumer accessibility, dual English/Hindi language, and plain everyday terminology
 
 export const TRANSLATIONS = {
   // Common Navigation & Demo
@@ -38,23 +39,209 @@ export const TRANSLATIONS = {
     en: "Listen",
     hi: "सुनें"
   },
+  stopAudio: {
+    en: "Stop",
+    hi: "रोकें"
+  },
 
-  // Landing Page
+  // Consumer Verification (Homepage & Modal)
+  verifyHoneyTitle: {
+    en: "Verify Your Store-Bought Honey",
+    hi: "अपने शहद की शुद्धता व स्रोत जाँचें"
+  },
+  verifyHoneySubtitle: {
+    en: "No login required. Instantly check test reports and beekeeper origin for any bottle of certified Indian honey.",
+    hi: "लॉगिन की कोई आवश्यकता नहीं। किसी भी शहद की बोतल का लैब टेस्ट और किसान स्रोत तुरंत देखें।"
+  },
+  verifyTtsIntro: {
+    en: "Verify your honey in two simple ways. You can scan the QR code on your honey jar label or type the batch number manually. No account or login is required.",
+    hi: "शहद की जाँच दो आसान तरीकों से करें। आप अपनी शहद की शीशी पर दिया QR कोड स्कैन कर सकते हैं या बैच नंबर टाइप कर सकते हैं। किसी लॉगिन की आवश्यकता नहीं है।"
+  },
+  scanQrBtn: {
+    en: "Scan QR Code",
+    hi: "QR कोड स्कैन करें"
+  },
+  enterBatchLabel: {
+    en: "Enter Batch Number",
+    hi: "बैच नंबर दर्ज करें"
+  },
+  enterBatchPlaceholder: {
+    en: "e.g. BT-LIC001-20260825-01",
+    hi: "जैसे: BT-LIC001-20260825-01"
+  },
+  verifyBatchActionBtn: {
+    en: "Verify Honey",
+    hi: "शहद की जाँच करें"
+  },
+  sampleBatchesHint: {
+    en: "Try a certified sample batch:",
+    hi: "नमूना बैच नंबर से जाँचें:"
+  },
+  qrModalTitle: {
+    en: "Scan Honey Jar QR Code",
+    hi: "शहद जार QR कोड स्कैन करें"
+  },
+  qrModalSubtitle: {
+    en: "Point your phone camera at the QR code on your honey bottle, upload an image, or click a certified sample.",
+    hi: "अपनी शहद की बोतल पर छपे QR कोड की फोटो अपलोड करें या नीचे दिए गए प्रमाणित नमूने पर क्लिक करें।"
+  },
+  uploadQrImageBtn: {
+    en: "Upload QR Code Image",
+    hi: "QR कोड फोटो अपलोड करें"
+  },
+  sampleJarScanBtn: {
+    en: "Scan Sample Jar (BT-LIC001)",
+    hi: "नमूना जार स्कैन करें (BT-LIC001)"
+  },
+  sampleSingleHarvestBtn: {
+    en: "Scan Farmer Direct Jar (HB-BK0001)",
+    hi: "किसान डायरेक्ट जार स्कैन करें (HB-BK0001)"
+  },
+  closeBtn: {
+    en: "Close",
+    hi: "बंद करें"
+  },
+  scanningText: {
+    en: "Checking Honey Record...",
+    hi: "शहद का रिकॉर्ड जाँचा जा रहा है..."
+  },
+  scanningSubtext: {
+    en: "Connecting to registry to retrieve lab test results and farmer origin...",
+    hi: "रजिस्ट्री से लैब रिपोर्ट और किसान की जानकारी जाँची जा रही है..."
+  },
+
+  // Error Messages (Everyday Human-Friendly Phrasing)
+  errorMissingBatch: {
+    en: "Please enter a batch number.",
+    hi: "कृपया एक बैच नंबर दर्ज करें।"
+  },
+  errorNotFoundTitle: {
+    en: "Batch Number Not Found",
+    hi: "बैच नंबर नहीं मिला"
+  },
+  errorNotFoundDesc: {
+    en: "We couldn't find this batch number. Please check the label on your honey jar and try again.",
+    hi: "हमें यह बैच नंबर नहीं मिला। कृपया अपने शहद के डिब्बे पर छपा नंबर देखकर दोबारा प्रयास करें।"
+  },
+  errorNotFoundTts: {
+    en: "We could not find this batch number. Please check the label on your honey jar and try again, or click one of our verified sample batches.",
+    hi: "हमें यह बैच नंबर नहीं मिला। कृपया अपने शहद के डिब्बे पर लिखा नंबर जाँचकर पुनः प्रयास करें।"
+  },
+  errorQrReadFail: {
+    en: "We couldn't read that QR code. Please try again or enter the batch number manually.",
+    hi: "हम वह QR कोड नहीं पढ़ सके। कृपया दोबारा प्रयास करें या बैच नंबर हाथ से दर्ज करें।"
+  },
+  errorNetworkFail: {
+    en: "We couldn't check the honey right now. Please try again in a moment.",
+    hi: "हम अभी शहद की जाँच नहीं कर सके। कृपया कुछ देर बाद पुनः प्रयास करें।"
+  },
+  tryAgainBtn: {
+    en: "Try Again",
+    hi: "पुनः प्रयास करें"
+  },
+  backToHomeBtn: {
+    en: "Back to Home",
+    hi: "मुख्य पृष्ठ पर वापस"
+  },
+
+  // Consumer Verification Results Page
+  verificationSuccessful: {
+    en: "Verification Successful",
+    hi: "सत्यापन सफल"
+  },
+  statusVerifiedTag: {
+    en: "Verified",
+    hi: "सत्यापित"
+  },
+  statusVerifiedSub: {
+    en: "Official lab test and beekeeper provenance confirmed.",
+    hi: "सरकारी लैब जाँच और किसान स्रोत प्रमाणित।"
+  },
+  statusTamperedTitle: {
+    en: "⚠️ Record Mismatch Detected",
+    hi: "⚠️ डेटा में अंतर — रिकॉर्ड मेल नहीं खाता"
+  },
+  statusTamperedSub: {
+    en: "The record values for this bottle do not match the official lab register. Please inspect the jar seal.",
+    hi: "इस बोतल का डेटा सरकारी लैब रिकॉर्ड से मेल नहीं खा रहा है। मिलावट का संदेह हो सकता है।"
+  },
+  verifiedTts: {
+    en: "Verification successful. This honey is verified with authentic beekeeper origin and passed all official lab quality tests.",
+    hi: "सत्यापन सफल रहा। यह शहद वास्तविक किसान के खेत से निकली है और सभी सरकारी लैब मानकों पर खरी उतरी है।"
+  },
+  tamperedTts: {
+    en: "Warning. Record mismatch detected. The details on this bottle do not match the official registry.",
+    hi: "चेतावनी। डेटा में अंतर पाया गया। इस बोतल का विवरण आधिकारिक रिकॉर्ड से मेल नहीं खाता है।"
+  },
+  productDetailsSection: {
+    en: "Product & Packaging Details",
+    hi: "उत्पाद एवं पैकेजिंग विवरण"
+  },
+  processingBrandLabel: {
+    en: "Brand / Packager:",
+    hi: "ब्रांड / पैकेजिंग संस्था:"
+  },
+  fssaiLicenseLabel: {
+    en: "FSSAI License:",
+    hi: "FSSAI लाइसेंस नंबर:"
+  },
+  packDateLabel: {
+    en: "Packaging Date:",
+    hi: "पैकिंग तारीख:"
+  },
+  batchQuantityLabel: {
+    en: "Batch Volume:",
+    hi: "बैच की कुल मात्रा:"
+  },
+  originTrailTitle: {
+    en: "Journey from Hive to Jar",
+    hi: "छत्ते से जार तक का सफ़र"
+  },
+  originTrailTts: {
+    en: "Journey from hive to jar. See how this honey was harvested by local beekeepers, tested in the lab, and bottled.",
+    hi: "छत्ते से जार तक का सफ़र। देखें कि यह शहद किसानों के छत्ते से कैसे निकाली गई, लैब में कैसे जाँची गई और कैसे पैक हुई।"
+  },
+  sourceBeekeepersTitle: {
+    en: "Source Beekeepers",
+    hi: "हमारे स्रोत किसान"
+  },
+  sourceBeekeepersTts: {
+    en: "Source beekeepers. Meet the registered beekeepers who produced this honey.",
+    hi: "स्रोत किसान। जानिए उन पंजीकृत किसानों के बारे में जिन्होंने इस शहद का उत्पादन किया।"
+  },
+  labScorecardTitle: {
+    en: "Laboratory Quality Scorecard",
+    hi: "सरकारी लैब गुणवत्ता स्कोरकार्ड"
+  },
+  labScorecardTts: {
+    en: "Laboratory quality scorecard. Moisture, sugar screen, and freshness have all been tested according to national standards.",
+    hi: "लैब गुणवत्ता स्कोरकार्ड। नमी, शर्करा जाँच और ताजगी सरकारी मानकों के अनुरूप जाँची गई है।"
+  },
+  viewLabCertBtn: {
+    en: "View Lab Certificate",
+    hi: "लैब प्रमाणपत्र देखें"
+  },
+  techDetailsDrawerTitle: {
+    en: "Technical & Security Details",
+    hi: "तकनीकी एवं सुरक्षा विवरण"
+  },
+  techDetailsDrawerHint: {
+    en: "Optional technical ledger data for inspectors and auditors.",
+    hi: "निरीक्षकों और तकनीकी जाँच के लिए अपरिवर्तनीय लेजर रिकॉर्ड।"
+  },
+
+  // Landing Page Hero
   brandTagline: {
     en: "Trace Every Drop. Protect Every Beekeeper.",
     hi: "खेत से बाज़ार तक - हर बूँद असली"
   },
   heroSubtitle: {
-    en: "India's trusted honey traceability & simple hive management platform for beekeepers, FPOs, and conscious consumers.",
-    hi: "भारतीय मधुमक्खी पालक किसानों, एफपीओ और उपभोक्ताओं के लिए भरोसेमंद शहद सत्यापन और सरल पेटी प्रबंधन मंच।"
+    en: "India's trusted honey traceability platform for conscious consumers, rural beekeepers, and FPOs.",
+    hi: "भारतीय मधुमक्खी पालक किसानों, एफपीओ और उपभोक्ताओं के लिए भरोसेमंद शहद सत्यापन मंच।"
   },
   getStartedBtn: {
-    en: "Get Started / Farmer Login",
-    hi: "शुरू करें / किसान लॉगिन"
-  },
-  scanBatchBtn: {
-    en: "Scan / Verify Batch",
-    hi: "शहद की शुद्धता जाँचें (QR स्कैन)"
+    en: "Beekeeper & Company Login",
+    hi: "किसान एवं कंपनी लॉगिन"
   },
   trustPledge: {
     en: "हर बूँद असली — Every drop verified from hive to jar.",
@@ -75,16 +262,16 @@ export const TRANSLATIONS = {
     hi: "लैब जाँच प्रमाण"
   },
   benefit2Desc: {
-    en: "Store official test reports to get better prices from companies and FPOs.",
-    hi: "शुद्धता की सरकारी लैब रिपोर्ट जोड़ें और कंपनियों से अपनी शहद का सही दाम पाएं।"
+    en: "Official NABL test reports ensure quality standards and protect against adulteration.",
+    hi: "सरकारी NABL लैब रिपोर्ट से शहद की गुणवत्ता सुनिश्चित होती है और सही दाम मिलता है।"
   },
   benefit3Title: {
-    en: "Trusted Honey Certificate",
+    en: "Trusted QR Certificate",
     hi: "डिजिटल QR कोड प्रमाण"
   },
   benefit3Desc: {
-    en: "Generate tamper-evident QR codes so buyers and consumers trust your harvest.",
-    hi: "हर डिब्बे के लिए सुरक्षित QR कोड बनाएं ताकि ग्राहक आपकी शहद पर पूरा भरोसा करें।"
+    en: "Every jar gets a unique verification code so consumers can check origin in 5 seconds.",
+    hi: "हर बोतल पर सुरक्षित QR कोड होता है जिससे खरीदार 5 सेकंड में स्रोत देख सकते हैं।"
   },
 
   // Role Selection
@@ -119,175 +306,77 @@ export const TRANSLATIONS = {
   continueAsCompany: {
     en: "Continue as Company / FPO",
     hi: "कंपनी / एफपीओ के रूप में आगे बढ़ें"
-  },
-
-  // Beekeeper Dashboard
-  apiaryLocations: {
-    en: "My Apiary Sites",
-    hi: "मेरे मधुमक्खी स्थान"
-  },
-  totalHives: {
-    en: "Total Colony Boxes",
-    hi: "कुल पेटियां"
-  },
-  harvestsCompleted: {
-    en: "Harvests Completed",
-    hi: "कुल शहद निकालाई"
-  },
-  hiveHealthStatus: {
-    en: "Hive Health Status",
-    hi: "पेटियों का स्वास्थ्य"
-  },
-  statusGood: {
-    en: "Good / Healthy",
-    hi: "स्वस्थ / सब ठीक है"
-  },
-  statusAttention: {
-    en: "Needs Attention",
-    hi: "ध्यान दें"
-  },
-  statusCritical: {
-    en: "Critical Action Needed",
-    hi: "तुरंत ध्यान दें (खतरा)"
-  },
-  createNewHarvestAction: {
-    en: "➕ Create New Harvest",
-    hi: "➕ नया शहद जोड़ें (निकालाई दर्ज करें)"
-  },
-
-  // Navigation Tabs
-  tabOverview: {
-    en: "Dashboard Overview",
-    hi: "डैशबोर्ड"
-  },
-  tabHarvests: {
-    en: "My Harvests",
-    hi: "मेरी फसल / शहद"
-  },
-  tabCreateHarvest: {
-    en: "New Harvest",
-    hi: "नया शहद जोड़ें"
-  },
-  tabApiaries: {
-    en: "Apiaries & Hives",
-    hi: "स्थान और पेटियां"
-  },
-  tabHealth: {
-    en: "Health Logs",
-    hi: "स्वास्थ्य रिकॉर्ड"
-  },
-  tabReminders: {
-    en: "Reminders & Alerts",
-    hi: "याद दिलाएं / कार्य"
-  },
-
-  // Floral sources
-  flowerMustard: {
-    en: "Mustard",
-    hi: "सरसों"
-  },
-  flowerEucalyptus: {
-    en: "Eucalyptus",
-    hi: "यूकेलिप्टस / सफेदा"
-  },
-  flowerAcacia: {
-    en: "Acacia (Kikar)",
-    hi: "किकर / बबूल"
-  },
-  flowerLitchi: {
-    en: "Litchi",
-    hi: "लीची"
-  },
-  flowerSunflower: {
-    en: "Sunflower",
-    hi: "सूरजमुखी"
-  },
-  flowerMultifloral: {
-    en: "Multifloral / Wild Forest",
-    hi: "बहुपुष्पी / जंगली फूल"
-  },
-
-  // Wizard Steps
-  step1Title: {
-    en: "Step 1: Beekeeper Confirmation",
-    hi: "चरण 1: किसान पहचान पुष्टि"
-  },
-  step2Title: {
-    en: "Step 2: Extraction Location",
-    hi: "चरण 2: शहद निकालने का स्थान"
-  },
-  step3Title: {
-    en: "Step 3: Harvest Date",
-    hi: "चरण 3: शहद निकालने की तारीख"
-  },
-  step4Title: {
-    en: "Step 4: Primary Floral Source",
-    hi: "चरण 4: फूल का प्रकार (फ्लोरा)"
-  },
-  step5Title: {
-    en: "Step 5: Lab Report & Photo",
-    hi: "चरण 5: लैब रिपोर्ट / फोटो"
-  },
-  step6Title: {
-    en: "Step 6: Smart Contract Verification",
-    hi: "चरण 6: ब्लॉकचेन सत्यापन"
-  },
-
-  // Actions
-  nextBtn: {
-    en: "Next Step",
-    hi: "आगे बढ़ें"
-  },
-  backBtn: {
-    en: "Go Back",
-    hi: "पीछे जाएं"
-  },
-  submitHarvestBtn: {
-    en: "Verify & Generate QR Code",
-    hi: "सत्यापित करें और QR कोड बनाएं"
-  },
-  printQrBtn: {
-    en: "Print / Save QR Code for Containers",
-    hi: "डिब्बों के लिए QR कोड डाउनलोड / प्रिंट करें"
-  },
-  doneDashboardBtn: {
-    en: "Done, Back to Dashboard",
-    hi: "हो गया, डैशबोर्ड पर जाएं"
   }
 };
 
 /**
- * Text-to-Speech playback helper
- * Speaks out in Hindi or English using Web Speech API
+ * Stop any ongoing speech synthesis
  */
-export function speakText(text, lang = 'hi') {
+export function stopSpeaking() {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {
+      console.warn('Error cancelling speech:', e);
+    }
+  }
+}
+
+/**
+ * Text-to-Speech playback helper
+ * Speaks out in Hindi or Indian English using Web Speech API
+ */
+export function speakText(text, lang = 'hi', onStart = null, onEnd = null) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     console.warn('Speech synthesis not supported on this browser.');
+    if (onEnd) onEnd();
     return;
   }
 
   try {
-    // Cancel any ongoing speech
+    // Cancel any ongoing speech first
     window.speechSynthesis.cancel();
 
+    if (!text || text.trim() === '') {
+      if (onEnd) onEnd();
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9; // slightly slower for clarity
+    utterance.rate = 0.92; // slightly slower for clear listening
     utterance.pitch = 1.0;
 
-    // Attempt to select Hindi or Indian English voice if available
     const voices = window.speechSynthesis.getVoices();
     if (lang === 'hi') {
-      const hindiVoice = voices.find(v => v.lang.includes('hi') || v.name.includes('Hindi') || v.lang.includes('hi-IN'));
+      const hindiVoice = voices.find(
+        v => v.lang.includes('hi') || v.name.includes('Hindi') || v.lang.includes('hi-IN') || v.name.includes('Lekha')
+      );
       if (hindiVoice) utterance.voice = hindiVoice;
       utterance.lang = 'hi-IN';
     } else {
-      const indianEngVoice = voices.find(v => v.lang === 'en-IN' || v.name.includes('India'));
+      const indianEngVoice = voices.find(
+        v => v.lang === 'en-IN' || v.name.includes('India') || v.name.includes('Veena') || v.name.includes('Rishi')
+      );
       if (indianEngVoice) utterance.voice = indianEngVoice;
       utterance.lang = 'en-IN';
     }
 
+    utterance.onstart = () => {
+      if (onStart) onStart();
+    };
+
+    utterance.onend = () => {
+      if (onEnd) onEnd();
+    };
+
+    utterance.onerror = (e) => {
+      console.warn('SpeechSynthesis error:', e);
+      if (onEnd) onEnd();
+    };
+
     window.speechSynthesis.speak(utterance);
   } catch (err) {
     console.warn('TTS playback error:', err);
+    if (onEnd) onEnd();
   }
 }

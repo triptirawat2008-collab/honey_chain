@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
 import { 
-  Hexagon, ArrowRight, ShieldCheck, ClipboardCheck, Compass, 
-  Upload, QrCode, Sparkles, CheckCircle2, ChevronRight, Volume2 
+  Hexagon, ArrowRight, ShieldCheck, Search,
+  Upload, QrCode, ChevronRight, AlertCircle
 } from 'lucide-react';
 import SpeakerButton from '../components/SpeakerButton';
+import { TRANSLATIONS } from '../utils/langHelper';
 
 export default function LandingPage({ setView, setActiveTraceId, primaryLang = 'hi' }) {
+  const [manualBatchId, setManualBatchId] = useState('');
+  const [inputError, setInputError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+
+  const t = (key) => TRANSLATIONS[key]?.[primaryLang] || TRANSLATIONS[key]?.['en'] || key;
+
+  const handleManualVerify = (batchToVerify) => {
+    const raw = batchToVerify !== undefined ? batchToVerify : manualBatchId;
+    const trimmed = (raw || '').trim();
+
+    if (!trimmed) {
+      setInputError(t('errorMissingBatch'));
+      return;
+    }
+
+    setInputError('');
+    setActiveTraceId(trimmed);
+    setView('consumer-trace');
+  };
 
   const handleQrUpload = (e) => {
     const file = e.target.files?.[0];
@@ -17,25 +36,34 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
     setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
-      setActiveTraceId('BT-LIC001-20260825-01');
-      setView('consumer-trace');
-    }, 1200);
-  };
-
-  const handleDirectScanSample = () => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
+      setShowQrModal(false);
       setActiveTraceId('BT-LIC001-20260825-01');
       setView('consumer-trace');
     }, 1000);
   };
 
+  const handleDirectScanSample = (sampleId = 'BT-LIC001-20260825-01') => {
+    setIsScanning(true);
+    setTimeout(() => {
+      setIsScanning(false);
+      setShowQrModal(false);
+      setActiveTraceId(sampleId);
+      setView('consumer-trace');
+    }, 900);
+  };
+
   return (
     <div className="app-container">
-      {/* Header */}
+      {/* Top Navbar */}
       <header className="navbar">
-        <div className="logo-container" onClick={() => setView('landing')} style={{ cursor: 'pointer' }}>
+        <div 
+          className="logo-container" 
+          onClick={() => setView('landing')} 
+          style={{ cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          aria-label="HoneyChain Home"
+        >
           <span className="logo-icon">
             <Hexagon size={32} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
           </span>
@@ -44,7 +72,7 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               HoneyChain
             </span>
             <span style={{ fontSize: '0.78rem', color: 'var(--color-primary-dark)', fontWeight: 700 }}>
-              हनीचेन • राष्ट्रीय शहद पोर्टल
+              {primaryLang === 'hi' ? 'हनीचेन • राष्ट्रीय शहद सत्यापन पोर्टल' : 'HoneyChain • National Honey Portal'}
             </span>
           </div>
         </div>
@@ -53,24 +81,23 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
           <ul className="nav-links">
             <li>
               <button 
+                type="button"
                 className="btn btn-outline-green" 
-                onClick={() => {
-                  setActiveTraceId('BT-LIC001-20260825-01');
-                  setView('consumer-trace');
-                }}
+                onClick={() => setShowQrModal(true)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
               >
                 <QrCode size={18} />
-                <span>{primaryLang === 'hi' ? 'शहद की जाँच (QR)' : 'Verify Honey (QR)'}</span>
+                <span>{t('scanQrBtn')}</span>
               </button>
             </li>
             <li>
               <button 
+                type="button"
                 className="btn btn-primary" 
                 onClick={() => setView('role-selection')}
-                style={{ fontWeight: 800, padding: '0.75rem 1.4rem' }}
+                style={{ fontWeight: 800, padding: '0.75rem 1.3rem' }}
               >
-                <span>{primaryLang === 'hi' ? 'शुरू करें / लॉगिन' : 'Get Started'}</span>
+                <span>{t('getStartedBtn')}</span>
                 <ArrowRight size={18} />
               </button>
             </li>
@@ -78,91 +105,187 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
         </nav>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section with Primary Consumer Verification */}
       <section className="hero-section">
         <div className="hero-content">
           <div className="hero-badge">
             <ShieldCheck size={18} />
-            <span>Smart India Hackathon (SIH) 2026 Prototype • राष्ट्रीय मधुमक्खी बोर्ड मॉडल</span>
+            <span>Smart India Hackathon 2026 Prototype • राष्ट्रीय मधुमक्खी बोर्ड मॉडल</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <h1 className="hero-title">
-              {primaryLang === 'hi' ? (
-                <>
-                  खेत से बाज़ार तक <br />
-                  <span style={{ color: 'var(--color-primary-dark)' }}>Trace Every Drop. Protect Every Beekeeper.</span>
-                </>
-              ) : (
-                <>
-                  Trace Every Drop. Protect Every Beekeeper. <br />
-                  <span style={{ color: 'var(--color-primary-dark)', fontSize: '0.85em' }}>खेत से बाज़ार तक - हर बूँद असली</span>
-                </>
-              )}
-            </h1>
-            <SpeakerButton 
-              text={primaryLang === 'hi' 
-                ? "खेत से बाज़ार तक। हर बूँद असली। भारत का पहला सरल मधुमक्खी पालन और शहद सत्यापन पोर्टल।" 
-                : "From farm to market, trace every drop and protect every beekeeper. India's trusted honey traceability platform."} 
-              lang={primaryLang}
-              size={22}
-            />
-          </div>
+          <h1 className="hero-title" style={{ marginBottom: '0.75rem' }}>
+            {primaryLang === 'hi' ? (
+              <>
+                खेत से बाज़ार तक <br />
+                <span style={{ color: 'var(--color-primary-dark)' }}>हर बूँद का सत्यापन, किसान का संरक्षण</span>
+              </>
+            ) : (
+              <>
+                Trace Every Drop. <br />
+                <span style={{ color: 'var(--color-primary-dark)' }}>Protect Every Beekeeper.</span>
+              </>
+            )}
+          </h1>
 
-          <p className="hero-subtitle">
-            {primaryLang === 'hi'
-              ? "भारतीय मधुमक्खी पालक किसानों, एफपीओ और उपभोक्ताओं के लिए भरोसेमंद शहद सत्यापन और सरल पेटी प्रबंधन मंच। बिना किसी कागज़ी झंझट के।"
-              : "India's trusted honey traceability & simple hive management platform for rural beekeepers, FPOs, and conscious consumers."}
+          <p className="hero-subtitle" style={{ maxWidth: '680px', margin: '0 auto 2rem auto' }}>
+            {t('heroSubtitle')}
           </p>
 
-          <div className="hero-actions">
-            {/* Primary Action Button - Gold, Massive */}
-            <button 
-              className="btn btn-primary btn-hero-lg" 
-              onClick={() => setView('role-selection')}
-              style={{ minHeight: '64px', fontSize: '1.25rem', fontWeight: 800, padding: '1rem 2.25rem', boxShadow: 'var(--shadow-premium)' }}
-            >
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', lineHeight: 1.2 }}>
-                <span>{primaryLang === 'hi' ? 'शुरू करें / किसान लॉगिन' : 'Get Started / Farmer Login'}</span>
-                <span style={{ fontSize: '0.8rem', fontWeight: 500, opacity: 0.9 }}>
-                  {primaryLang === 'hi' ? 'Get Started / Login' : 'लॉगिन करें (किसान एवं कंपनी)'}
-                </span>
-              </span>
-              <ArrowRight size={24} style={{ marginLeft: '0.75rem' }} />
-            </button>
+          {/* PRIMARY CONSUMER VERIFICATION CARD - NO LOGIN REQUIRED */}
+          <div className="consumer-verify-card">
+            <div className="consumer-verify-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.4rem' }}>🍯</span>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--color-text-main)' }}>
+                  {t('verifyHoneyTitle')}
+                </h2>
+              </div>
+              <SpeakerButton 
+                text={t('verifyTtsIntro')} 
+                lang={primaryLang}
+                size={18}
+                showLabel={true}
+              />
+            </div>
 
-            {/* Secondary Action Button - Outlined Green */}
-            <button 
-              className="btn btn-outline-green btn-hero-lg" 
-              onClick={() => setShowQrModal(true)}
-              style={{ minHeight: '64px', fontSize: '1.15rem', fontWeight: 700, padding: '1rem 1.8rem', borderWidth: '2.5px' }}
-            >
-              <QrCode size={24} style={{ marginRight: '0.5rem' }} />
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', lineHeight: 1.2 }}>
-                <span>{primaryLang === 'hi' ? 'शहद बोतल QR स्कैन करें' : 'Scan / Verify Batch'}</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 500, opacity: 0.85 }}>
-                  {primaryLang === 'hi' ? 'Public Consumer Verification' : 'सार्वजनिक उपभोक्ता जाँच'}
+            <p style={{ fontSize: '0.92rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem', textAlign: 'left', lineHeight: 1.5 }}>
+              {t('verifyHoneySubtitle')}
+            </p>
+
+            {/* Direct Verification Grid: 1. Manual Batch Input, 2. QR Code Scan Button */}
+            <div className="verify-inputs-container">
+              {/* Batch Input Form */}
+              <div className="verify-batch-form">
+                <label 
+                  htmlFor="hero-batch-input" 
+                  style={{ display: 'block', textAlign: 'left', fontSize: '0.88rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--color-text-main)' }}
+                >
+                  {t('enterBatchLabel')}
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                    <input 
+                      id="hero-batch-input"
+                      type="text"
+                      className="form-input"
+                      placeholder={t('enterBatchPlaceholder')}
+                      value={manualBatchId}
+                      onChange={(e) => {
+                        setManualBatchId(e.target.value);
+                        if (inputError) setInputError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleManualVerify();
+                      }}
+                      style={{ 
+                        height: '52px', 
+                        fontSize: '1rem', 
+                        fontWeight: 600, 
+                        borderColor: inputError ? 'var(--color-danger)' : 'var(--color-border)',
+                        width: '100%'
+                      }}
+                      aria-invalid={!!inputError}
+                    />
+                  </div>
+                  <button 
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleManualVerify()}
+                    style={{ minHeight: '52px', padding: '0 1.5rem', fontSize: '1rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+                  >
+                    <Search size={18} />
+                    <span>{t('verifyBatchActionBtn')}</span>
+                  </button>
+                </div>
+
+                {inputError && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--color-danger)', fontSize: '0.85rem', marginTop: '0.5rem', textAlign: 'left' }}>
+                    <AlertCircle size={15} />
+                    <span>{inputError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* QR Scan Button */}
+              <div className="verify-qr-col">
+                <span style={{ display: 'block', textAlign: 'left', fontSize: '0.88rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--color-text-main)' }}>
+                  {primaryLang === 'hi' ? 'या QR कोड से' : 'Or via QR Code'}
                 </span>
+                <button 
+                  type="button"
+                  className="btn btn-outline-green"
+                  onClick={() => setShowQrModal(true)}
+                  style={{ width: '100%', minHeight: '52px', fontSize: '1rem', fontWeight: 700, borderWidth: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                >
+                  <QrCode size={20} />
+                  <span>{t('scanQrBtn')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Sample Test Chips */}
+            <div className="sample-batch-chips">
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                {t('sampleBatchesHint')}
               </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                <button 
+                  type="button"
+                  className="sample-chip-btn"
+                  onClick={() => handleManualVerify('BT-LIC001-20260825-01')}
+                  title="Verify Sample Batch BT-LIC001"
+                >
+                  🏷️ BT-LIC001-20260825-01 ({primaryLang === 'hi' ? 'मास्टर बैच' : 'Master Batch'})
+                </button>
+                <button 
+                  type="button"
+                  className="sample-chip-btn"
+                  onClick={() => handleManualVerify('HB-BK0001-20260820-01')}
+                  title="Verify Sample Harvest HB-BK0001"
+                >
+                  🌿 HB-BK0001-20260820-01 ({primaryLang === 'hi' ? 'किसान डायरेक्ट' : 'Farmer Direct'})
+                </button>
+                <button 
+                  type="button"
+                  className="sample-chip-btn chip-btn-fail"
+                  onClick={() => handleManualVerify('INVALID-BATCH-999')}
+                  title="Test Invalid Batch Error Handling"
+                >
+                  ❌ {primaryLang === 'hi' ? 'अमान्य बैच परीक्षण' : 'Test Invalid ID'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Quick Role Navigation Row */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap' }}>
+            <button 
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setView('role-selection')}
+              style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>🧑‍🌾 {primaryLang === 'hi' ? 'किसान / कंपनी लॉगिन' : 'Beekeeper & Company Portal'}</span>
+              <ArrowRight size={14} />
             </button>
           </div>
 
-          {/* Trust line */}
-          <div className="trust-pledge-banner">
+          {/* Trust Guarantee banner */}
+          <div className="trust-pledge-banner" style={{ marginTop: '2rem' }}>
             <span className="trust-icon">✨</span>
-            <strong>{primaryLang === 'hi' ? 'हर बूँद असली — Every drop verified from hive to jar.' : 'Every drop verified from hive to jar — हर बूँद असली।'}</strong>
+            <strong>{t('trustPledge')}</strong>
           </div>
         </div>
       </section>
 
-      {/* 3 Simple Benefit Cards (Icon-First, 1 Short Line) */}
+      {/* 3 Simple Benefit Cards */}
       <section className="section-container" id="benefits">
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div className="section-eyebrow">
-            {primaryLang === 'hi' ? 'किसानों और उपभोक्ताओं के लिए' : 'Designed for Village & City Alike'}
+            {primaryLang === 'hi' ? 'उपभोक्ताओं और किसानों के लिए' : 'Designed for Consumers & Farmers'}
           </div>
           <h2 className="section-title">
-            {primaryLang === 'hi' ? 'हनीचेन के तीन बड़े फायदे' : 'Three Simple Promises of HoneyChain'}
+            {primaryLang === 'hi' ? 'हनीचेन के तीन बड़े फायदे' : 'Three Core Promises of HoneyChain'}
           </h2>
         </div>
 
@@ -174,14 +297,10 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
             </div>
             <div className="benefit-card-content">
               <h3>
-                {primaryLang === 'hi' ? 'सरल मधुमक्खी पालन' : 'Simple Hive Tracking'}
+                {t('benefit1Title')}
                 <span className="sub-label">{primaryLang === 'hi' ? 'Simple Hive Tracking' : 'सरल मधुमक्खी पालन'}</span>
               </h3>
-              <p>
-                {primaryLang === 'hi' 
-                  ? 'अपनी पेटियों और जगह बदलने का हिसाब आसानी से रखें, बिना किसी लिखा-पढ़ी के।' 
-                  : 'Keep records of your hives and location changes easily with zero paperwork.'}
-              </p>
+              <p>{t('benefit1Desc')}</p>
             </div>
           </div>
 
@@ -192,14 +311,10 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
             </div>
             <div className="benefit-card-content">
               <h3>
-                {primaryLang === 'hi' ? 'लैब जाँच प्रमाण' : 'Lab & Quality Proof'}
+                {t('benefit2Title')}
                 <span className="sub-label">{primaryLang === 'hi' ? 'Lab & Quality Proof' : 'लैब जाँच प्रमाण'}</span>
               </h3>
-              <p>
-                {primaryLang === 'hi' 
-                  ? 'सरकारी लैब रिपोर्ट जोड़ें और कंपनियों व खरीदारों से अपनी शहद का बेहतरीन दाम पाएं।' 
-                  : 'Store official test reports to get better prices from companies and FPOs.'}
-              </p>
+              <p>{t('benefit2Desc')}</p>
             </div>
           </div>
 
@@ -210,21 +325,17 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
             </div>
             <div className="benefit-card-content">
               <h3>
-                {primaryLang === 'hi' ? 'डिजिटल QR कोड प्रमाण' : 'Trusted Honey Certificate'}
+                {t('benefit3Title')}
                 <span className="sub-label">{primaryLang === 'hi' ? 'Trusted QR Certificate' : 'डिजिटल QR कोड'}</span>
               </h3>
-              <p>
-                {primaryLang === 'hi' 
-                  ? 'हर डिब्बे के लिए सुरक्षित QR कोड बनाएं ताकि खरीदार आपकी शहद की शुद्धता पर पूरा भरोसा करें।' 
-                  : 'Generate tamper-evident QR codes so buyers and consumers trust your honey instantly.'}
-              </p>
+              <p>{t('benefit3Desc')}</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* "How It Works" Visual Step-Flow */}
-      <section className="section-container" id="how-it-works" style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', padding: '3.5rem 2rem', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border)' }}>
+      {/* 6-Step Origin Flow */}
+      <section className="section-container" id="how-it-works" style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', padding: '3rem 2rem', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border)' }}>
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div className="section-eyebrow">
             {primaryLang === 'hi' ? 'सरल 6-चरणीय यात्रा' : '6-Step Origin Flow'}
@@ -234,13 +345,12 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
           </h2>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '1rem', maxWidth: '600px', margin: '0 auto' }}>
             {primaryLang === 'hi' 
-              ? 'किसान की पेटी से उपभोक्ता की मेज तक हर कदम डिजिटल और सुरक्षित है।'
-              : 'Every step from the village hive box to the consumer dinner table is tamper-evident.'}
+              ? 'किसान की पेटी से उपभोक्ता की मेज तक हर कदम पारदर्शी और प्रमाणित है।'
+              : 'Every step from the village hive box to the consumer dinner table is verifiable.'}
           </p>
         </div>
 
         <div className="rural-flow-container">
-          {/* Step 1 */}
           <div className="rural-flow-item">
             <div className="flow-badge-icon" style={{ backgroundColor: '#FEF3C7' }}>🧑‍🌾</div>
             <div className="flow-number">1</div>
@@ -250,7 +360,6 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
 
           <div className="flow-connector"><ChevronRight size={24} /></div>
 
-          {/* Step 2 */}
           <div className="rural-flow-item">
             <div className="flow-badge-icon" style={{ backgroundColor: '#DCFCE7' }}>🪪</div>
             <div className="flow-number">2</div>
@@ -260,7 +369,6 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
 
           <div className="flow-connector"><ChevronRight size={24} /></div>
 
-          {/* Step 3 */}
           <div className="rural-flow-item">
             <div className="flow-badge-icon" style={{ backgroundColor: '#FEF3C7' }}>🍯</div>
             <div className="flow-number">3</div>
@@ -270,70 +378,79 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
 
           <div className="flow-connector"><ChevronRight size={24} /></div>
 
-          {/* Step 4 */}
           <div className="rural-flow-item">
             <div className="flow-badge-icon" style={{ backgroundColor: '#DCFCE7' }}>🧪</div>
             <div className="flow-number">4</div>
             <h4>{primaryLang === 'hi' ? 'लैब जाँच' : 'Lab Verification'}</h4>
-            <p>{primaryLang === 'hi' ? 'NABL लैब शुद्धता जाँच' : 'NABL Purity Test'}</p>
+            <p>{primaryLang === 'hi' ? 'NABL लैब शुद्धता जाँच' : 'NABL Quality Test'}</p>
           </div>
 
           <div className="flow-connector"><ChevronRight size={24} /></div>
 
-          {/* Step 5 */}
           <div className="rural-flow-item">
             <div className="flow-badge-icon" style={{ backgroundColor: '#F3E8FF' }}>⛓️</div>
             <div className="flow-number">5</div>
-            <h4>{primaryLang === 'hi' ? 'ब्लॉकचेन रिकॉर्ड' : 'Ledger Hash'}</h4>
-            <p>{primaryLang === 'hi' ? 'अपरिवर्तनीय डिजिटल कोड' : 'Tamper-Evident Hash'}</p>
+            <h4>{primaryLang === 'hi' ? 'डिजिटल प्रमाण' : 'Digital Record'}</h4>
+            <p>{primaryLang === 'hi' ? 'सुरक्षित लेजर कोड' : 'Tamper-Evident Record'}</p>
           </div>
 
           <div className="flow-connector"><ChevronRight size={24} /></div>
 
-          {/* Step 6 */}
           <div className="rural-flow-item highlighted-step">
             <div className="flow-badge-icon" style={{ backgroundColor: '#DCFCE7' }}>📱</div>
             <div className="flow-number">6</div>
             <h4>{primaryLang === 'hi' ? 'ग्राहक QR स्कैन' : 'Consumer Scan'}</h4>
-            <p>{primaryLang === 'hi' ? '5 सेकंड में शुद्धता प्रमाण' : 'Instant 5s Purity Proof'}</p>
+            <p>{primaryLang === 'hi' ? '5 सेकंड में सत्यापन' : 'Instant Verification'}</p>
           </div>
         </div>
       </section>
 
-      {/* Demo Quick Scanner Modal */}
+      {/* QR Scanner Modal (Preserved & Enhanced Existing Modal) */}
       {showQrModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '460px', textAlign: 'center', padding: '2rem' }}>
+        <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', textAlign: 'center', padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
               <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-secondary-dark)' }}>
                 <QrCode size={36} />
               </div>
             </div>
-            <h3 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-              {primaryLang === 'hi' ? 'शहद जार QR कोड स्कैन करें' : 'Scan Honey Jar QR Code'}
+            
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--color-text-main)' }}>
+              {t('qrModalTitle')}
             </h3>
-            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '1.75rem' }}>
-              {primaryLang === 'hi'
-                ? 'स्मार्ट इंडिया हैकाथॉन डेमो: किसी भी नमूना बैच को तुरंत सत्यापित करने के लिए नीचे क्लिक करें।'
-                : 'SIH Prototype Demo: Click below to simulate scanning a jar of certified Indian honey.'}
+            
+            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              {t('qrModalSubtitle')}
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <button 
+                type="button"
                 className="btn btn-green"
-                onClick={handleDirectScanSample}
-                style={{ padding: '0.9rem', fontSize: '1rem', fontWeight: 700 }}
+                onClick={() => handleDirectScanSample('BT-LIC001-20260825-01')}
+                style={{ padding: '0.9rem', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
               >
-                ✨ {primaryLang === 'hi' ? 'नमूना बैच BT-LIC001 जाँचें (1-Click)' : 'Scan Sample Batch (BT-LIC001)'}
+                <span>✨ {t('sampleJarScanBtn')}</span>
+              </button>
+
+              <button 
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleDirectScanSample('HB-BK0001-20260820-01')}
+                style={{ padding: '0.75rem', fontSize: '0.92rem', fontWeight: 700 }}
+              >
+                <span>🌾 {t('sampleSingleHarvestBtn')}</span>
               </button>
 
               <div style={{ borderTop: '1px dashed var(--color-border)', paddingTop: '1rem' }}>
                 <button 
+                  type="button"
                   className="btn btn-secondary" 
                   onClick={() => document.getElementById('qr-file-input')?.click()}
-                  style={{ width: '100%', fontSize: '0.9rem' }}
+                  style={{ width: '100%', fontSize: '0.92rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                 >
-                  <Upload size={16} /> {primaryLang === 'hi' ? 'QR कोड फोटो अपलोड करें' : 'Upload QR Image'}
+                  <Upload size={16} /> 
+                  <span>{t('uploadQrImageBtn')}</span>
                 </button>
                 <input 
                   id="qr-file-input"
@@ -345,11 +462,12 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               </div>
 
               <button 
+                type="button"
                 className="btn btn-secondary" 
                 onClick={() => setShowQrModal(false)}
-                style={{ marginTop: '0.5rem' }}
+                style={{ marginTop: '0.25rem' }}
               >
-                {primaryLang === 'hi' ? 'बंद करें' : 'Close'}
+                {t('closeBtn')}
               </button>
             </div>
           </div>
@@ -363,19 +481,17 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
             <div className="flow-circle active pulse-icon" style={{ margin: '0 auto 1.5rem auto', width: '4rem', height: '4rem' }}>
               <QrCode size={28} style={{ color: 'white' }} />
             </div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
-              {primaryLang === 'hi' ? 'QR कोड स्कैन हो रहा है...' : 'Scanning QR Code...'}
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+              {t('scanningText')}
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-              {primaryLang === 'hi' 
-                ? 'ब्लॉकचेन लेजर से शहद की शुद्धता व किसान रिकॉर्ड का मिलान किया जा रहा है...'
-                : 'Verifying batch cryptographic hash against HoneyChain registry...'}
+            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
+              {t('scanningSubtext')}
             </p>
           </div>
         </div>
       )}
 
-      {/* Footer with SIH Prototype Disclaimer */}
+      {/* Footer */}
       <footer className="footer-rural">
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
           <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.5rem' }}>
@@ -383,8 +499,8 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
           </p>
           <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
             {primaryLang === 'hi'
-              ? 'प्रोटोटाइप सूचना: यह एक सिमुलेटेड फ्रंटएंड डेमो है जो भविष्य में राष्ट्रीय मधुमक्खी बोर्ड (NBB), मधुक्रांति पोर्टल और FSSAI के साथ डिजिटल एकीकरण को दर्शाता है।'
-              : 'SIH Prototype Notice: All identity registries and blockchain ledger records utilize synthetic test data simulating future Madhukranti & National Bee Board integration.'}
+              ? 'प्रोटोटाइप सूचना: यह एक सिमुलेटेड फ्रंटएंड डेमो है जो राष्ट्रीय मधुमक्खी बोर्ड (NBB), मधुक्रांति पोर्टल और FSSAI के साथ डिजिटल एकीकरण को दर्शाता है।'
+              : 'SIH Prototype Notice: All identity registries and ledger records utilize synthetic test data simulating future Madhukranti & National Bee Board integration.'}
           </p>
         </div>
       </footer>
