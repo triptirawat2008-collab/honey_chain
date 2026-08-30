@@ -38,7 +38,8 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [labReportFile, setLabReportFile] = useState(null);
   const [labPhotoCaptured, setLabPhotoCaptured] = useState(false);
   const [gpsDetecting, setGpsDetecting] = useState(false);
-  const [gpsDetected, setGpsDetected] = useState('28.8041° N, 79.0250° E (Rampur, UP)');
+  const [gpsDetected, setGpsDetected] = useState('Location not set yet');
+  const [gpsCoordinates, setGpsCoordinates] = useState(null);
   
   // Verification progress simulation in step 6
   const [verificationStep, setVerificationStep] = useState(0); // 0: idle, 1: id, 2: lab, 3: report, 4: ledger, 5: done
@@ -64,6 +65,31 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [newRemTitle, setNewRemTitle] = useState('');
   const [newRemDate, setNewRemDate] = useState('');
   const [newRemNotes, setNewRemNotes] = useState('');
+
+  const persistReminderStorage = (nextReminders) => {
+    if (!user?.beekeeperId) return;
+    const storageKey = `honeychain_alerts_${user.beekeeperId}`;
+    localStorage.setItem(storageKey, JSON.stringify(nextReminders));
+  };
+
+  useEffect(() => {
+    if (!user?.beekeeperId) return;
+
+    const storageKey = `honeychain_alerts_${user.beekeeperId}`;
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setReminders(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setReminders([]);
+      }
+    } catch (error) {
+      console.error('Failed to load saved reminders:', error);
+      setReminders([]);
+    }
+  }, [user?.beekeeperId, setReminders]);
 
   // Floral options with rich icons
   const flowerOptions = [
@@ -179,13 +205,42 @@ const handleAddNewLocationBackend = async () => {
     }
   };
 
-  // GPS Auto-detect simulation
+  // GPS Auto-detect using the browser's real geolocation API.
   const handleAutoDetectGps = () => {
+    if (!navigator.geolocation) {
+      setGpsDetected('Geolocation is not supported by this browser.');
+      return;
+    }
+
     setGpsDetecting(true);
-    setTimeout(() => {
-      setGpsDetecting(false);
-      setGpsDetected('28.8041° N, 79.0250° E (Rampur, UP - Detected via GPS)');
-    }, 900);
+    setGpsCoordinates(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const currentCoords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+        setGpsCoordinates({ latitude, longitude });
+        setGpsDetected(`${currentCoords} (Current location)`);
+        setGpsDetecting(false);
+      },
+      (error) => {
+        const messageMap = {
+          1: 'Location permission denied. Please allow access and retry.',
+          2: 'Location unavailable. Please try again.',
+          3: 'Location request timed out. Please try again.'
+        };
+
+        setGpsDetected(messageMap[error.code] || 'Unable to determine your current location. Please try again.');
+        setGpsDetecting(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   // Voice note simulation for health log
@@ -230,6 +285,7 @@ const startVerificationProcess = async () => {
             harvest_date: harvestDate,
             flower_sources: selectedFlowers,
             location_id: selectedApiaryId,
+            gps_coordinates: gpsCoordinates ? `${gpsCoordinates.latitude.toFixed(6)}, ${gpsCoordinates.longitude.toFixed(6)}` : null,
             lab_ulr: ulrNumber || null,
             ulr_status: ulrStatus || "Verified",
             block_hash: hashVal,
@@ -295,6 +351,8 @@ const resetHarvestForm = () => {
     setSelectedFlowers(['Mustard']);
     setCustomFlower('');
     setCustomLocationText('');
+    setGpsCoordinates(null);
+    setGpsDetected('Location not set yet');
     setLabReportFile(null);
     setLabPhotoCaptured(false);
     setLabVerificationError('');
@@ -659,7 +717,11 @@ const handleExecuteMove = () => {
       status: 'Pending'
     };
 
-    setReminders([newRem, ...reminders]);
+    setReminders(prev => {
+      const updated = [newRem, ...prev];
+      persistReminderStorage(updated);
+      return updated;
+    });
     setNewRemTitle('');
     setNewRemDate('');
     setNewRemNotes('');
@@ -667,13 +729,16 @@ const handleExecuteMove = () => {
   };
 
   const handleToggleReminder = (id) => {
-    const updated = reminders.map(r => {
-      if (r.id === id) {
-        return { ...r, status: r.status === 'Pending' ? 'Completed' : 'Pending' };
-      }
-      return r;
+    setReminders(prev => {
+      const updated = prev.map(r => {
+        if (r.id === id) {
+          return { ...r, status: r.status === 'Pending' ? 'Completed' : 'Pending' };
+        }
+        return r;
+      });
+      persistReminderStorage(updated);
+      return updated;
     });
-    setReminders(updated);
   };
 
   const myHarvests = harvests.filter(h => h.beekeeperId === user.beekeeperId);
@@ -1162,7 +1227,7 @@ const handleExecuteMove = () => {
                     >
                       <MapPin size={28} className={gpsDetecting ? 'pulse-icon' : ''} />
                       <div style={{ textAlign: 'left' }}>
-                        <div>{gpsDetecting ? (primaryLang === 'hi' ? 'जीपीएस खोजा जा रहा है...' : 'Detecting GPS...') : (primaryLang === 'hi' ? '📍 फोन जीपीएस से स्थान लें (Auto-Detect GPS)' : '📍 Auto-Detect GPS Location')}</div>
+                        <div>{gpsDetecting ? (primaryLang === 'hi' ? 'जीपीएस खोजा जा रहा है...' : 'Detecting GPS...') : (primaryLang === 'hi' ? '📍 वर्तमान स्थान का उपयोग करें' : '📍 Use Current Location')}</div>
                         <div style={{ fontSize: '0.8rem', fontWeight: 500, opacity: 0.85 }}>{gpsDetected}</div>
                       </div>
                     </button>

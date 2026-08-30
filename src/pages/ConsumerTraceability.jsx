@@ -22,11 +22,41 @@ const normalizeFlowerSources = (value) => {
   return [String(value)];
 };
 
+const getLabName = (lab) => {
+  if (!lab || typeof lab !== 'object') return '';
+
+  return (
+    lab.lab_name ||
+    lab.labName ||
+    lab.name ||
+    lab.laboratory_name ||
+    lab.laboratoryName ||
+    ''
+  );
+};
+
+const getLabUlr = (lab) => {
+  if (!lab || typeof lab !== 'object') return '';
+
+  return (
+    lab.ulr_number ||
+    lab.ulrNumber ||
+    lab.ulr ||
+    lab.lab_ulr ||
+    lab.labUlr ||
+    lab.labULR ||
+    lab.final_lab_ulr ||
+    lab.finalLabUlr ||
+    lab.harvest_lab_ulr ||
+    lab.harvestLabUlr ||
+    ''
+  );
+};
+
 export default function ConsumerTraceability({ 
   traceId, setActiveTraceId, setView, harvests = [], batches = [], primaryLang = 'hi'
 }) {
   const [showBlockchainDetails, setShowBlockchainDetails] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
   const [isTampered, setIsTampered] = useState(false);
   const [retryInput, setRetryInput] = useState('');
   const [retryError, setRetryError] = useState('');
@@ -54,6 +84,7 @@ export default function ConsumerTraceability({
     fetch(`/api/trace/${encodeURIComponent(rawId)}`)
       .then(async (response) => {
         const result = await response.json();
+        console.log('TRACE API RESULT:', result);
         if (!response.ok || !result.verified) {
           throw new Error(result.message || 'Record not found');
         }
@@ -85,17 +116,25 @@ export default function ConsumerTraceability({
     result.batch?.company_license || 'FSSAI Licensed',
 
   labUlR:
-    result.batch?.final_lab_ulr || '',
+  result.batch?.final_lab_ulr ||
+  result.harvestLabReports?.[0]?.lab?.ulr_number ||
+  result.harvestLabReports?.[0]?.labReport?.ulr_number ||
+  '',
 
-  labStatus:
-    result.batch?.ulr_status || 'Unverified',
+labStatus:
+  result.batch?.ulr_status ||
+  result.harvestLabReports?.[0]?.lab?.accreditation_status ||
+  'Unverified',
 
-  lab:
-    result.lab || null,
+lab:
+  result.lab ||
+  result.harvestLabReports?.[0]?.lab ||
+  null,
 
-  labReport:
-    result.labReport || null,
-
+labReport:
+  result.labReport ||
+  result.harvestLabReports?.[0]?.labReport ||
+  null,
   harvestLabReports:
     result.harvestLabReports || [],
 
@@ -127,14 +166,16 @@ timestamp:
               quantityKg: Number(result.harvest?.harvest_quantity_kg ?? result.harvest?.quantity_kg ?? 160),
               moisture: '17.4% (Pass)',
               hash: result.harvest?.block_hash || '',
-              blockNumber: result.harvest?.block_number || null,              
+              blockNumber: result.harvest?.block_number || null,
               timestamp: result.harvest?.created_at || result.harvest?.harvest_date || '',
               productName: result.harvest?.flower_sources ? normalizeFlowerSources(result.harvest.flower_sources).join(' & ') + ' Honey' : 'Pure Indian Honey',
               companyName: result.harvest?.beekeeper_name || 'Verified Beekeeper',
               sourceHarvestIds: [result.harvest?.harvest_id || rawId],
               harvests: [result.harvest],
               labUlR: result.harvest?.lab_ulr || '',
-              labStatus: result.harvest?.harvest_ulr_status || result.harvest?.verification_status || 'Verified'
+              labStatus: result.harvest?.harvest_ulr_status || result.harvest?.verification_status || 'Verified',
+              lab: result.lab || result.harvest?.lab || result.harvest || null,
+              labReport: result.labReport || result.harvest?.labReport || result.harvest?.lab || null
             };
 
         if (isMounted) {
@@ -584,60 +625,6 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
                 {displayQuantity}
               </strong>
             </div>
-                      {/* COMPANY SUBMITTED LAB REPORT */}
-          {isBatch && activeRecord.lab && (
-            <div style={{
-              marginTop: '1.25rem',
-              padding: '1rem',
-              backgroundColor: '#F9FAFB',
-              borderRadius: '8px',
-              border: '1px solid var(--color-border)'
-            }}>
-              <strong>
-                {primaryLang === 'hi'
-                  ? 'कंपनी द्वारा प्रस्तुत लैब रिपोर्ट'
-                  : 'Company Submitted Lab Report'}
-              </strong>
-
-              <div style={{ marginTop: '0.5rem' }}>
-                <div>
-                  Lab:{' '}
-                  {activeRecord.lab.lab_name ||
-                    activeRecord.lab.laboratory_name ||
-                    'N/A'}
-                </div>
-
-                <div>
-                  ULR:{' '}
-                  <span style={{ fontFamily: 'monospace' }}>
-                    {activeRecord.lab.ulr_number ||
-                      activeRecord.labUlR ||
-                      'Not available'}
-                  </span>
-                </div>
-
-                {activeRecord.labReport?.report_url && (
-                  <a
-                    href={activeRecord.labReport.report_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary btn-sm"
-                    style={{
-                      marginTop: '0.75rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem'
-                    }}
-                  >
-                    <FileText size={16} />
-                    {primaryLang === 'hi'
-                      ? 'लैब रिपोर्ट देखें'
-                      : 'View Lab Report'}
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
           </div>
         </div>
 
@@ -864,19 +851,6 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
     {h.labStatus || 'Unverified'}
   </strong>
 </div>
-{h.labReport?.report_url && (
-  <a
-    href={h.labReport.report_url}
-    target="_blank"
-    rel="noreferrer"
-    className="btn btn-secondary btn-sm"
-  >
-    <FileText size={16} />
-    {primaryLang === 'hi'
-      ? 'लैब रिपोर्ट देखें'
-      : 'View Lab Report'}
-  </a>
-)}
                   <div className="farmer-detail-item">
                     <span>{primaryLang === 'hi' ? 'फूल का प्रकार:' : 'Flora Source:'}</span>
                     <strong>🌼 {h.flowerSources ? h.flowerSources.join(', ') : 'Mustard'}</strong>
@@ -899,95 +873,46 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
 
         {/* 5. LAB INSPECTION SCORECARD */}
         <section className="trace-section-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>
-                {t('labScorecardTitle')}
-              </h3>
-              <SpeakerButton 
-                text={t('labScorecardTts')}
-                lang={primaryLang}
-                size={18}
-              />
-            </div>
-
-            <button 
-              type="button"
-              className="btn btn-secondary btn-sm" 
-              onClick={() => setShowReportModal(true)}
-              style={{ fontWeight: 700 }}
-            >
-              <FileText size={16} /> 
-              <span>{t('viewLabCertBtn')}</span>
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>
+              {t('labScorecardTitle')}
+            </h3>
+            <SpeakerButton 
+              text={t('labScorecardTts')}
+              lang={primaryLang}
+              size={18}
+            />
           </div>
 
-<div className="lab-scorecard-grid">
+          <div className="lab-scorecard-grid">
+            <div className="scorecard-item item-pass">
+              <div className="scorecard-top">
+                <span className="scorecard-title">Lab Name</span>
+                <span className="badge-score badge-pass">VERIFIED</span>
+              </div>
 
-  <div className="scorecard-item item-pass">
-    <div className="scorecard-top">
-      <span className="scorecard-title">Laboratory</span>
-      <span className="badge-score badge-pass">VERIFIED</span>
-    </div>
-
-    <div className="scorecard-val">
-      {activeRecord.lab?.lab_name || 'Not available'}
-    </div>
-
-    <div className="scorecard-limit">
-      ULR: {activeRecord.lab?.ulr_number || activeRecord.labUlR || 'Not available'}
-    </div>
-  </div>
-
-  <div className="scorecard-item item-pass">
-    <div className="scorecard-top">
-      <span className="scorecard-title">NABL Certificate</span>
-      <span className="badge-score badge-pass">ACTIVE</span>
-    </div>
-
-    <div className="scorecard-val">
-      {activeRecord.lab?.nabl_certificate_number || 'Not available'}
-    </div>
-
-    <div className="scorecard-limit">
-      Accreditation: {activeRecord.lab?.accreditation_status || 'Not available'}
-    </div>
-  </div>
-
-  <div className="scorecard-item item-pass">
-    <div className="scorecard-top">
-      <span className="scorecard-title">Report Number</span>
-      <span className="badge-score badge-pass">RECORDED</span>
-    </div>
-
-    <div className="scorecard-val">
-      {activeRecord.lab?.report_number || 'Not available'}
-    </div>
-
-    <div className="scorecard-limit">
-      Sample ID: {activeRecord.lab?.sample_id || 'Not available'}
-    </div>
-  </div>
-
-  <div className="scorecard-item item-pass">
-    <div className="scorecard-top">
-      <span className="scorecard-title">Report Date</span>
-      <span className="badge-score badge-pass">RECORDED</span>
-    </div>
-
-    <div className="scorecard-val">
-      {activeRecord.lab?.report_date
-        ? new Date(activeRecord.lab.report_date).toLocaleDateString()
-        : 'Not available'
-      }
-    </div>
-
-    <div className="scorecard-limit">
-      Status: {activeRecord.lab?.accreditation_status || 'Not available'}
-    </div>
-  </div>
-
+<div className="scorecard-val">
+  {getLabName(activeRecord.lab) ||
+   getLabName(activeRecord.labReport) ||
+   getLabName(activeRecord.harvests?.[0]) ||
+   'Not available'}
 </div>
+            </div>
+
+            <div className="scorecard-item item-pass">
+              <div className="scorecard-top">
+                <span className="scorecard-title">Lab ULR</span>
+                <span className="badge-score badge-pass">ULR</span>
+              </div>
+
+<div className="scorecard-val" style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>
+  {activeRecord.labUlR ||
+   getLabUlr(activeRecord.lab) ||
+   getLabUlr(activeRecord.labReport) ||
+   getLabUlr(activeRecord.harvests?.[0]) ||
+   'Not available'}
+</div>            </div>
+          </div>
         </section>
 
         {/* 6. COLLAPSIBLE TECHNICAL & SECURITY DRAWER */}
@@ -1086,101 +1011,6 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
         </p>
       </div>
 
-      {/* Lab Report Modal */}
-      {showReportModal && (
-        <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-{primaryLang === 'hi'
-  ? 'लैब सत्यापन विवरण'
-  : 'Laboratory Verification Details'
-}              </h3>
-              <button 
-                type="button"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} 
-                onClick={() => setShowReportModal(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ fontFamily: 'monospace', backgroundColor: '#F9FAFB', border: '1px solid var(--color-border)', padding: '1.5rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
-              <div style={{ textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
-                <strong style={{ fontSize: '1.1rem' }}>NATIONAL HONEY QUALITY ASSURANCE LABORATORY</strong> <br />
-                NABL Accreditation No: TC-8419 • FSSAI Recognized Lab #104 <br />
-                Ghaziabad, Uttar Pradesh, India
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <strong>Batch Ref:</strong> {activeRecord.batchId || activeRecord.harvestId} <br />
-                  <strong>Test Date:</strong> {activeRecord.createdDate || activeRecord.harvestDate}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <strong>Sample Type:</strong> Raw Natural Honey <br />
-                  <strong>Result:</strong> <span style={{ color: isTampered ? 'red' : 'green', fontWeight: 'bold' }}>{isTampered ? 'ADULTERATED (FAIL)' : 'PASSED / PURE'}</span>
-                </div>
-              </div>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.75rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #333' }}>
-                    <th style={{ textAlign: 'left', padding: '0.35rem 0' }}>Parameter Tested</th>
-                    <th style={{ textAlign: 'right', padding: '0.35rem 0' }}>FSSAI Limit</th>
-                    <th style={{ textAlign: 'right', padding: '0.35rem 0' }}>Measured Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ padding: '0.35rem 0' }}>Moisture (Water)</td>
-                    <td style={{ textAlign: 'right' }}>&lt; 20%</td>
-                    <td style={{ textAlign: 'right', color: isTampered ? 'red' : 'inherit', fontWeight: 'bold' }}>{displayMoisture}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '0.35rem 0' }}>C4 Sugar (Corn/Cane)</td>
-                    <td style={{ textAlign: 'right' }}>&lt; 7%</td>
-                    <td style={{ textAlign: 'right', color: isTampered ? 'red' : 'inherit', fontWeight: 'bold' }}>{displayC4Sugar}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '0.35rem 0' }}>Fructose/Glucose Ratio</td>
-                    <td style={{ textAlign: 'right' }}>&gt; 1.0</td>
-                    <td style={{ textAlign: 'right' }}>1.28 (Pass)</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '0.35rem 0' }}>HMF Content</td>
-                    <td style={{ textAlign: 'right' }}>&lt; 80 mg/kg</td>
-                    <td style={{ textAlign: 'right' }}>11.8 mg/kg (Pass)</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div style={{ marginTop: '1.25rem', borderTop: '1px dashed #DDD', paddingTop: '0.75rem', fontSize: '0.75rem', color: '#666' }}>
-                Cryptographic Verification Hash: <br />
-                <span style={{ color: isTampered ? 'red' : '#7C3AED', wordBreak: 'break-all' }}>{displayHash}</span>
-              </div>
-            </div>
-
-            <div className="modal-footer" style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button 
-                type="button"
-                className="btn btn-secondary" 
-                onClick={() => setShowReportModal(false)}
-              >
-                {t('closeBtn')}
-              </button>
-              <button 
-                type="button"
-                className="btn btn-primary" 
-                onClick={() => alert("Report printed successfully.")}
-              >
-                <Printer size={16} /> 
-                <span>{primaryLang === 'hi' ? 'प्रिंट प्रमाणपत्र' : 'Print Certificate'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

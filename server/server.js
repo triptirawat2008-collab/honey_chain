@@ -267,7 +267,8 @@ app.post('/api/harvests', async (req, res) => {
       harvest_date,
       flower_sources,
       location_id,
-      lab_ulr,          // Changed here
+      gps_coordinates,
+      lab_ulr,
       ulr_status,
       block_hash,
       tx_ref,
@@ -289,12 +290,16 @@ app.post('/api/harvests', async (req, res) => {
       harvest_date,
       JSON.stringify(flower_sources), // Safely converts the array for SQL
       location_id,
-      lab_ulr || null,  // Changed in the values array here
+      lab_ulr || null,
       ulr_status || 'Verified',
       block_hash,
       tx_ref,
       quantity_kg || 160
     ];
+
+    if (gps_coordinates) {
+      console.log('Harvest GPS payload received:', gps_coordinates);
+    }
 
     const result = await pool.query(query, values);
     res.status(201).json({ success: true, data: result.rows[0] });
