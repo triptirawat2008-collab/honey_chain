@@ -8,7 +8,6 @@ import {
   ChevronRight, RefreshCw
 } from 'lucide-react';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
-import { generateMockHash } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
 
 export default function BeekeeperDashboard({ 
@@ -275,10 +274,7 @@ const startVerificationProcess = async () => {
           // Generate Harvest ID
           const targetApiary = apiaries.find(a => a.locationId === selectedApiaryId);
           const dateStr = harvestDate.replace(/-/g, '');
-          const newHarvestId = `HB-${user.beekeeperId}-${dateStr}-${Date.now().toString().slice(-4)}`;          
-          const rawString = `${newHarvestId}|${user.beekeeperId}|${harvestDate}|${selectedFlowers.join(',')}`;
-          const hashVal = generateMockHash(rawString);
-          const txRefVal = "0x" + generateMockHash(hashVal).substring(0, 60);
+          const newHarvestId = `HB-${user.beekeeperId}-${dateStr}-${Date.now().toString().slice(-4)}`;
 
           const newHarvestPayload = {
             harvest_id: newHarvestId,
@@ -289,8 +285,6 @@ const startVerificationProcess = async () => {
             gps_coordinates: gpsCoordinates ? `${gpsCoordinates.latitude.toFixed(6)}, ${gpsCoordinates.longitude.toFixed(6)}` : null,
             lab_ulr: ulrNumber || null,
             ulr_status: ulrStatus || "Verified",
-            block_hash: hashVal,
-            tx_ref: txRefVal,
             quantity_kg: Number(harvestQuantity) || 0
           };
 
@@ -314,8 +308,8 @@ const startVerificationProcess = async () => {
               location_id: selectedApiaryId,
               lab_ulr: ulrNumber || null,
               ulr_status: ulrStatus || 'Verified',
-              block_hash: hashVal,
-              tx_ref: txRefVal,
+              block_hash: null,
+              tx_ref: null,
               quantity_kg: Number(harvestQuantity) || 0,
               location_name: customLocationText || (targetApiary ? targetApiary.name : 'Rampur Apiary')
             });
@@ -1044,7 +1038,6 @@ const handleExecuteMove = () => {
                         <th>{primaryLang === 'hi' ? 'फूल का प्रकार' : 'Flower Source'}</th>
                         <th>{primaryLang === 'hi' ? 'स्थान' : 'Location'}</th>
                         <th>{primaryLang === 'hi' ? 'लैब जाँच' : 'Lab Status'}</th>
-                        <th>{primaryLang === 'hi' ? 'ब्लॉकचेन' : 'Blockchain'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1067,11 +1060,6 @@ const handleExecuteMove = () => {
                           <td>
                             <span className="badge-active" style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontWeight: 700 }}>
                               🟢 ✓ {h.labStatus}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="blockchain-status-tag">
-                              <ShieldCheck size={14} /> {h.blockchainStatus}
                             </span>
                           </td>
                         </tr>

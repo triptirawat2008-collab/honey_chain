@@ -8,7 +8,11 @@ import { ethers } from "ethers";
 dotenv.config({ path: ".env" });
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
-const contractAddress = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
+const contractAddress = process.env.BLOCKCHAIN_CONTRACT_ADDRESS;
+
+if (!contractAddress) {
+    throw new Error("BLOCKCHAIN_CONTRACT_ADDRESS is missing from .env");
+}
 
 const wallet = new ethers.Wallet(
     process.env.BLOCKCHAIN_PRIVATE_KEY,
@@ -45,6 +49,8 @@ const honeyChainContract = new ethers.Contract(
     contractJson.abi,
     wallet,
 );
+// Log the resolved contract address for verification
+console.log("HoneyChain contract target:", honeyChainContract.target);
 
 
 const { Pool } = pg;
@@ -667,15 +673,37 @@ app.post('/api/harvests', async (req, res) => {
       gps_coordinates,
       lab_ulr,
       ulr_status,
-      block_hash,
-      tx_ref,
       quantity_kg
     } = req.body;
+
+    if (!harvest_id || !beekeeper_id || !harvest_date || !flower_sources || !location_id || quantity_kg === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required harvest fields'
+      });
+    }
+
+    const flowers = Array.isArray(flower_sources)
+      ? flower_sources.join(', ')
+      : String(flower_sources || '');
+
+    const tx = await honeyChainContract.registerHarvest(
+      harvest_id,
+      beekeeper_id,
+      location_id,
+      harvest_date,
+      flowers,
+      Number(quantity_kg),
+      lab_ulr || '',
+      ulr_status || 'Verified'
+    );
+
+    const receipt = await tx.wait();
 
     const query = `
       INSERT INTO harvests (
         harvest_id, beekeeper_id, harvest_date, flower_sources, location_id,
-        lab_ulr, ulr_status, block_hash, tx_ref, quantity_kg   -- Changed inside the SQL string here!
+        lab_ulr, ulr_status, block_hash, tx_ref, quantity_kg
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
@@ -685,13 +713,13 @@ app.post('/api/harvests', async (req, res) => {
       harvest_id,
       beekeeper_id,
       harvest_date,
-      JSON.stringify(flower_sources), // Safely converts the array for SQL
+      JSON.stringify(flower_sources),
       location_id,
       lab_ulr || null,
       ulr_status || 'Verified',
-      block_hash,
-      tx_ref,
-      quantity_kg || 160
+      receipt.hash,
+      receipt.hash,
+      Number(quantity_kg) || 160
     ];
 
     if (gps_coordinates) {
@@ -699,10 +727,18 @@ app.post('/api/harvests', async (req, res) => {
     }
 
     const result = await pool.query(query, values);
-    res.status(201).json({ success: true, data: result.rows[0] });
+
+    return res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      transactionHash: receipt.hash
+    });
   } catch (err) {
     console.error('Database Error saving harvest:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({
+      success: false,
+      error: err.shortMessage || err.message || 'Failed to create harvest'
+    });
   }
 });
 // Get all harvests for a beekeeper

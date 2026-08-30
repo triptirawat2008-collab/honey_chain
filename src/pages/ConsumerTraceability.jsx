@@ -989,29 +989,6 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
 
       </div>
 
-      <div className="tamper-control-float">
-        <div className="tamper-control-title">
-          🛠️ Demo Tamper Testing
-        </div>
-        <label className="tamper-toggle-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 700, margin: '0.4rem 0' }}>
-          <input 
-            type="checkbox" 
-            checked={isTampered}
-            onChange={(e) => setIsTampered(e.target.checked)}
-            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-          />
-          <span style={{ color: isTampered ? 'var(--color-danger)' : 'inherit' }}>
-            {primaryLang === 'hi' ? 'डेटा में छेड़छाड़ का परीक्षण करें (Simulate Tampering)' : 'Simulate Record Tampering'}
-          </span>
-        </label>
-        <p style={{ fontSize: '0.72rem', color: '#9CA3AF', margin: 0, lineHeight: 1.4 }}>
-          {primaryLang === 'hi'
-            ? 'इस बॉक्स को टिक करें। आप देखेंगे कि कैसे रिकॉर्ड में बदलाव होने पर उपभोक्ता को स्पष्ट चेतावनी दिखाई देती है।'
-            : 'Toggle to test how clear warnings are displayed to consumers if data values are altered.'}
-        </p>
-      </div>
-
-
     </div>
   );
 }

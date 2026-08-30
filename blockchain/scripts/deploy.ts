@@ -1,7 +1,7 @@
 import { network } from "hardhat";
 
 async function main() {
-  const { ethers } = await network.connect();
+  const { ethers } = await network.connect("localhost");
 
   const HoneyChain = await ethers.getContractFactory("HoneyChain");
 
