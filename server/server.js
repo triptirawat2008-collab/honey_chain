@@ -2,8 +2,51 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import pg from "pg";
+import { ethers } from "ethers";
 
-dotenv.config();
+
+dotenv.config({ path: "../.env" });
+
+const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+
+const contractAddress = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
+
+const wallet = new ethers.Wallet(
+    process.env.BLOCKCHAIN_PRIVATE_KEY,
+    provider
+);
+
+console.log("Blockchain provider connected");
+console.log("HoneyChain contract:", contractAddress);
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const contractPath = path.join(
+    __dirname,
+    "..",
+    "blockchain",
+    "artifacts",
+    "contracts",
+    "HoneyChain.sol",
+    "HoneyChain.json"
+);
+
+const contractJson = JSON.parse(
+    fs.readFileSync(contractPath, "utf8")
+);
+
+
+const honeyChainContract = new ethers.Contract(
+    contractAddress,
+    contractJson.abi,
+    wallet,
+);
+
 
 const { Pool } = pg;
 
@@ -158,6 +201,361 @@ FROM verification.lab_report_registry
 // ==========================================
 
 // Create a new Apiary Location
+app.post("/api/blockchain/beekeeper", async (req, res) => {
+    try {
+        const { beekeeperId, status } = req.body;
+
+        if (!beekeeperId || !status) {
+            return res.status(400).json({
+                success: false,
+                message: "beekeeperId and status are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerBeekeeper(
+            beekeeperId,
+            status
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Beekeeper registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain beekeeper error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/apiary", async (req, res) => {
+    try {
+        const { locationId, beekeeperId } = req.body;
+
+        if (!locationId || !beekeeperId) {
+            return res.status(400).json({
+                success: false,
+                message: "locationId and beekeeperId are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerApiary(
+            locationId,
+            beekeeperId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Apiary registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain apiary error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/harvest", async (req, res) => {
+    try {
+        const {
+            harvestId,
+            beekeeperId,
+            locationId,
+            harvestDate,
+            flowerSources,
+            quantityKg,
+            labUlr,
+            ulrStatus
+        } = req.body;
+
+        const flowers = Array.isArray(flowerSources)
+            ? flowerSources.join(", ")
+            : String(flowerSources);
+
+        const tx = await honeyChainContract.registerHarvest(
+            harvestId,
+            beekeeperId,
+            locationId,
+            harvestDate,
+            flowers,
+            Number(quantityKg),
+            labUlr || "",
+            ulrStatus || "Verified"
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Harvest registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain harvest error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/batch", async (req, res) => {
+    try {
+        const {
+            batchId,
+            companyLicense,
+            productName,
+            quantityKg,
+            finalLabUlr,
+            ulrStatus
+        } = req.body;
+
+        if (!batchId || !companyLicense || !productName || quantityKg === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "Required batch fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.createBatch(
+          batchId,
+      companyLicense,
+      productName,
+      Number(quantityKg),
+      finalLabUlr || "",
+      ulrStatus || "Verified",
+      req.body.manualReportStatus || "",
+      req.body.isLabCertified || false,
+      req.body.manualReportCertified || false
+  );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Batch registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain batch error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/link-harvest", async (req, res) => {
+    try {
+        const { batchId, harvestId } = req.body;
+
+        if (!batchId || !harvestId) {
+            return res.status(400).json({
+                success: false,
+                message: "batchId and harvestId are required"
+            });
+        }
+
+        const tx = await honeyChainContract.addHarvestToBatch(
+            batchId,
+            harvestId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Harvest linked to batch on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain harvest linking error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+// ==========================================
+// BLOCKCHAIN: COMPANY
+// ==========================================
+
+app.post("/api/blockchain/company", async (req, res) => {
+    try {
+        const {
+            licenseNumber,
+            companyName,
+            licenseStatus,
+            issueDate,
+            expiryDate,
+            issuingAuthority
+        } = req.body;
+
+        if (
+            !licenseNumber ||
+            !companyName ||
+            !licenseStatus ||
+            issueDate === undefined ||
+            expiryDate === undefined ||
+            !issuingAuthority
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Required company fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.registerCompany(
+            licenseNumber,
+            companyName,
+            licenseStatus,
+            Number(issueDate),
+            Number(expiryDate),
+            issuingAuthority
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Company registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain company error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+
+
+// ==========================================
+// BLOCKCHAIN: LAB REPORT
+// ==========================================
+
+app.post("/api/blockchain/lab-report", async (req, res) => {
+    try {
+        const {
+            ulrNumber,
+            labId,
+            labName,
+            nablCertificateNumber,
+            accreditationStatus,
+            reportNumber,
+            reportDate,
+            sampleId
+        } = req.body;
+
+        if (
+            !ulrNumber ||
+            !labId ||
+            !labName ||
+            !nablCertificateNumber ||
+            !accreditationStatus ||
+            !reportNumber ||
+            !reportDate ||
+            !sampleId
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Required lab report fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.registerLabReport(
+            ulrNumber,
+            labId,
+            labName,
+            nablCertificateNumber,
+            accreditationStatus,
+            reportNumber,
+            reportDate,
+            sampleId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Lab report registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain lab report error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+
+
+// ==========================================
+// BLOCKCHAIN: HEALTH LOG
+// ==========================================
+
+app.post("/api/blockchain/health-log", async (req, res) => {
+    try {
+        const {
+            logId,
+            locationId,
+            status,
+            inspectionDate
+        } = req.body;
+
+        if (!req.body.logId || !locationId || !status || !inspectionDate)   {
+            return res.status(400).json({
+                success: false,
+                message: "logId, locationId, status and inspectionDate are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerHealthLog(
+            req.body.logId,
+            locationId,
+            status,
+            inspectionDate
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Health log registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain health log error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
 app.post('/api/locations', async (req, res) => {
   try {
     const { location_id, beekeeper_id, name, gps_coordinates, hive_count } = req.body;
