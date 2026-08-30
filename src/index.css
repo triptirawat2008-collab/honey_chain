@@ -646,6 +646,70 @@ a {
   margin-bottom: 1.25rem;
 }
 
+.lab-verification-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.lab-verification-field {
+  margin-bottom: 0.25rem;
+}
+
+.lab-verification-field label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.lab-verification-field input,
+.ulr-input-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.72rem 0.9rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.96rem;
+  background: #FFFFFF;
+  color: var(--color-text-main);
+}
+
+.ulr-input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.ulr-input-row input {
+  flex: 1;
+}
+
+.ulr-verify-btn {
+  white-space: nowrap;
+  padding-inline: 1rem;
+}
+
+.ulr-status-message {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ulr-status-message.checking {
+  color: var(--color-primary-dark);
+}
+
+.ulr-status-message.success {
+  color: var(--color-success);
+}
+
+.ulr-status-message.error,
+.ulr-status-message.validation {
+  color: var(--color-danger);
+}
+
 .form-label {
   display: block;
   font-weight: 700;

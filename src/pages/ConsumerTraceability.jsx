@@ -60,23 +60,64 @@ export default function ConsumerTraceability({
 
         const normalized = result.recordType === 'batch'
           ? {
-              batchId: result.batch?.batch_id || rawId,
-              companyName: result.company?.company_name || result.batch?.company_name || 'Verified Producer',
-              productName: result.batch?.product_name || 'Pure Indian Honey',
-              batchQuantity: `${result.batch?.quantity_kg ?? 0} kg`,
-              createdDate: result.batch?.created_at ? new Date(result.batch.created_at).toISOString().split('T')[0] : '',
-              fssaiNumber: result.batch?.company_license || 'FSSAI Licensed',
-              hash: result.batch?.block_hash || '',
-              blockNumber: result.batch?.block_number || 148920,
-              timestamp: result.batch?.created_at || '',
-              sourceHarvestIds: (result.harvests || []).map(item => item.harvest_id),
-              labUlR: result.batch?.final_lab_ulr || '',
-              labStatus: result.batch?.ulr_status || 'Verified',
-              companyLicense: result.batch?.company_license || '',
-              productNameHi: result.batch?.product_name || 'Pure Indian Honey',
-              moisture: '17.4% (Pass)',
-              harvests: result.harvests || []
-            }
+  batchId: result.batch?.batch_id || rawId,
+
+  companyName:
+    result.company?.company_name ||
+    result.batch?.company_name ||
+    'Verified Producer',
+
+  companyLicense:
+    result.batch?.company_license || '',
+
+  productName:
+    result.batch?.product_name || 'Pure Indian Honey',
+
+  batchQuantity:
+    `${result.batch?.quantity_kg ?? 0} kg`,
+
+  createdDate:
+    result.batch?.created_at
+      ? new Date(result.batch.created_at).toISOString().split('T')[0]
+      : '',
+
+  fssaiNumber:
+    result.batch?.company_license || 'FSSAI Licensed',
+
+  labUlR:
+    result.batch?.final_lab_ulr || '',
+
+  labStatus:
+    result.batch?.ulr_status || 'Unverified',
+
+  lab:
+    result.lab || null,
+
+  labReport:
+    result.labReport || null,
+
+  harvestLabReports:
+    result.harvestLabReports || [],
+
+  sourceHarvestIds:
+    (result.harvests || []).map(item => item.harvest_id),
+
+  harvests:
+    result.harvests || [],
+
+  hash:
+  result.batch?.block_hash || '',
+
+blockNumber:
+  result.batch?.block_number || null,
+
+txRef:
+  result.batch?.tx_ref || '',
+
+timestamp:
+  result.batch?.created_at || '',
+
+}
           : {
               harvestId: result.harvest?.harvest_id || rawId,
               beekeeperName: result.harvest?.beekeeper_name || 'Verified Beekeeper',
@@ -86,7 +127,7 @@ export default function ConsumerTraceability({
               quantityKg: Number(result.harvest?.harvest_quantity_kg ?? result.harvest?.quantity_kg ?? 160),
               moisture: '17.4% (Pass)',
               hash: result.harvest?.block_hash || '',
-              blockNumber: result.harvest?.block_number || 148920,
+              blockNumber: result.harvest?.block_number || null,              
               timestamp: result.harvest?.created_at || result.harvest?.harvest_date || '',
               productName: result.harvest?.flower_sources ? normalizeFlowerSources(result.harvest.flower_sources).join(' & ') + ' Honey' : 'Pure Indian Honey',
               companyName: result.harvest?.beekeeper_name || 'Verified Beekeeper',
@@ -287,29 +328,96 @@ export default function ConsumerTraceability({
       </div>
     );
   }
-
+if (!activeRecord) {
+  return (
+    <div className="consumer-layout">
+      <div className="consumer-container">
+        <div
+          className="trace-section-card"
+          style={{
+            textAlign: 'center',
+            padding: '3rem 2rem'
+          }}
+        >
+          <h2>Loading verification record...</h2>
+        </div>
+      </div>
+    </div>
+  );
+}
   // Harvests list resolution
-  const normalizedSourceHarvests = (activeRecord?.harvests || []).map(item => ({
+const normalizedSourceHarvests = (activeRecord?.harvests || [])
+  .filter(Boolean)
+  .map(item => {  const labInfo = (activeRecord?.harvestLabReports || [])
+    .find(report => report.harvest_id === item.harvest_id);
+
+  return {
     harvestId: item.harvest_id || item.harvestId || rawId,
-    beekeeperName: item.beekeeper_name || item.beekeeperName || 'Verified Beekeeper',
-    locationName: item.location_name || item.locationName || 'Apiary',
-    flowerSources: normalizeFlowerSources(item.flower_sources ?? item.flowerSources ?? []),
-    harvestDate: item.harvest_date || item.harvestDate || '',
-    quantityKg: Number(item.harvest_quantity_kg ?? item.quantity_kg ?? item.quantityKg ?? 160),
-    beekeeperId: item.beekeeper_id || item.beekeeperId || '',
-    state: item.state || 'Uttar Pradesh'
-  }));
+
+    beekeeperName:
+      item.beekeeper_name ||
+      item.beekeeperName ||
+      'Verified Beekeeper',
+
+    beekeeperId:
+      item.beekeeper_id ||
+      item.beekeeperId ||
+      '',
+
+    locationName:
+      item.location_name ||
+      item.locationName ||
+      'Apiary',
+
+    state:
+      item.state ||
+      'Uttar Pradesh',
+
+    flowerSources:
+      normalizeFlowerSources(
+        item.flower_sources ??
+        item.flowerSources ??
+        []
+      ),
+
+    harvestDate:
+      item.harvest_date ||
+      item.harvestDate ||
+      '',
+
+    quantityKg:
+      Number(
+        item.harvest_quantity_kg ??
+        item.quantity_kg ??
+        item.quantityKg ??
+        160
+      ),
+
+    labUlR:
+      item.lab_ulr || '',
+
+    labStatus:
+      item.harvest_ulr_status ||
+      item.ulr_status ||
+      'Unverified',
+
+    lab:
+      labInfo?.lab || null,
+
+    labReport:
+      labInfo?.labReport || null
+  };
+});
 
   let sourceHarvestsList = isBatch ? normalizedSourceHarvests : (normalizedSourceHarvests.length ? normalizedSourceHarvests : [{
-    harvestId: activeRecord.harvestId || rawId,
-    beekeeperName: activeRecord.beekeeperName || 'Verified Beekeeper',
-    locationName: activeRecord.locationName || 'Apiary',
-    flowerSources: activeRecord.flowerSources || [],
-    harvestDate: activeRecord.harvestDate || '',
-    quantityKg: activeRecord.quantityKg || 160,
-    beekeeperId: activeRecord.beekeeperId || '',
-    state: activeRecord.state || 'Uttar Pradesh'
-  }]);
+harvestId: activeRecord?.harvestId || rawId,
+beekeeperName: activeRecord?.beekeeperName || 'Verified Beekeeper',
+locationName: activeRecord?.locationName || 'Apiary',
+flowerSources: activeRecord?.flowerSources || [],
+harvestDate: activeRecord?.harvestDate || '',
+quantityKg: activeRecord?.quantityKg || 160,
+beekeeperId: activeRecord?.beekeeperId || '',
+state: activeRecord?.state || 'Uttar Pradesh'  }]);
 
   // Parameters for regular and tampered states
   const originalName = activeRecord.productName || (activeRecord.flowerSources ? activeRecord.flowerSources.join(' & ') + ' Honey' : 'Pure Indian Honey');
@@ -435,9 +543,18 @@ export default function ConsumerTraceability({
             <div style={{ textAlign: 'right' }}>
               <span className="field-label-tiny">{primaryLang === 'hi' ? 'प्रमाणन तिथि' : 'Verification Date'}</span>
               <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{activeRecord.createdDate || activeRecord.harvestDate}</div>
-              <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '0.78rem', marginTop: '0.35rem', display: 'inline-block' }}>
-                ✓ NABL Lab Passed
-              </span>
+             <span
+  className="badge-active"
+  style={{
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+    fontSize: '0.78rem',
+    marginTop: '0.35rem',
+    display: 'inline-block'
+  }}
+>
+  ✓ {activeRecord.labStatus || 'Verified'}
+</span>
             </div>
           </div>
 
@@ -446,18 +563,81 @@ export default function ConsumerTraceability({
               <span className="field-label-tiny">{t('processingBrandLabel')}</span>
               <strong style={{ fontSize: '1.05rem', display: 'block' }}>{activeRecord.companyName || (primaryLang === 'hi' ? 'किसान डायरेक्ट भंडार' : 'Farmer Direct Apiary')}</strong>
             </div>
-            <div>
-              <span className="field-label-tiny">{t('fssaiLicenseLabel')}</span>
-              <strong style={{ fontSize: '1.05rem', color: 'var(--color-secondary-dark)', display: 'block' }}>
-                {activeRecord.fssaiNumber || activeRecord.licenseNumber || 'FSSAI 10021051000124'}
-              </strong>
-            </div>
+<div>
+  <span className="field-label-tiny">
+    {primaryLang === 'hi' ? 'कंपनी लाइसेंस' : 'Company License'}
+  </span>
+
+  <strong
+    style={{
+      fontSize: '1.05rem',
+      color: 'var(--color-secondary-dark)',
+      display: 'block'
+    }}
+  >
+    {activeRecord.companyLicense || 'Not available'}
+  </strong>
+</div>
             <div>
               <span className="field-label-tiny">{t('batchQuantityLabel')}</span>
               <strong style={{ fontSize: '1.05rem', color: isTampered ? 'var(--color-danger)' : 'inherit', display: 'block' }}>
                 {displayQuantity}
               </strong>
             </div>
+                      {/* COMPANY SUBMITTED LAB REPORT */}
+          {isBatch && activeRecord.lab && (
+            <div style={{
+              marginTop: '1.25rem',
+              padding: '1rem',
+              backgroundColor: '#F9FAFB',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)'
+            }}>
+              <strong>
+                {primaryLang === 'hi'
+                  ? 'कंपनी द्वारा प्रस्तुत लैब रिपोर्ट'
+                  : 'Company Submitted Lab Report'}
+              </strong>
+
+              <div style={{ marginTop: '0.5rem' }}>
+                <div>
+                  Lab:{' '}
+                  {activeRecord.lab.lab_name ||
+                    activeRecord.lab.laboratory_name ||
+                    'N/A'}
+                </div>
+
+                <div>
+                  ULR:{' '}
+                  <span style={{ fontFamily: 'monospace' }}>
+                    {activeRecord.lab.ulr_number ||
+                      activeRecord.labUlR ||
+                      'Not available'}
+                  </span>
+                </div>
+
+                {activeRecord.labReport?.report_url && (
+                  <a
+                    href={activeRecord.labReport.report_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      marginTop: '0.75rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <FileText size={16} />
+                    {primaryLang === 'hi'
+                      ? 'लैब रिपोर्ट देखें'
+                      : 'View Lab Report'}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
           </div>
         </div>
 
@@ -485,8 +665,23 @@ export default function ConsumerTraceability({
                   {primaryLang === 'hi' ? '1. पंजीकृत किसान स्रोत' : '1. Registered Beekeeper Origin'}
                 </div>
                 <p className="timeline-desc">
-                  <strong>रवि कुमार (Rampur, UP)</strong> + <strong>अमित सिंह (Alwar, Rajasthan)</strong> — {primaryLang === 'hi' ? 'मधुक्रांति पंजीकृत किसानों द्वारा प्राकृतिक मधुमक्खी पेटियों से संकलित।' : 'Harvested from verified rural apiary boxes.'}
-                </p>
+  {sourceHarvestsList.length > 0
+    ? sourceHarvestsList.map((h, index) => (
+        <React.Fragment key={h.harvestId}>
+          <strong>
+            {h.beekeeperName}
+          </strong>
+          {' '}({h.locationName || h.state})
+          {index < sourceHarvestsList.length - 1 ? ' + ' : ''}
+        </React.Fragment>
+      ))
+    : (
+      primaryLang === 'hi'
+        ? 'कोई पंजीकृत किसान स्रोत उपलब्ध नहीं है।'
+        : 'No registered beekeeper source available.'
+    )
+  }
+</p>
               </div>
             </div>
 
@@ -500,10 +695,22 @@ export default function ConsumerTraceability({
                   {primaryLang === 'hi' ? '2. प्राकृतिक शहद निकालाई' : '2. Fresh Honey Harvest'}
                 </div>
                 <p className="timeline-desc">
-                  {primaryLang === 'hi' 
-                    ? 'सरसों एवं बहुपुष्पी फूलों का प्राकृतिक पराग रस। कोई कृत्रिम शर्करा या सिरप नहीं।' 
-                    : 'Extracted from natural mustard and wildflower blooms. Zero synthetic additives.'}
-                </p>
+  {(() => {
+    const flowers = [...new Set(
+      sourceHarvestsList.flatMap(h => h.flowerSources || [])
+    )];
+
+    if (flowers.length === 0) {
+      return primaryLang === 'hi'
+        ? 'फूलों के स्रोत की जानकारी उपलब्ध नहीं है।'
+        : 'Flower source information is not available.';
+    }
+
+    return primaryLang === 'hi'
+      ? `फूलों के स्रोत: ${flowers.join(', ')}`
+      : `Recorded floral sources: ${flowers.join(', ')}`;
+  })()}
+</p>
               </div>
             </div>
 
@@ -517,10 +724,19 @@ export default function ConsumerTraceability({
                   {primaryLang === 'hi' ? '3. NABL मान्यता प्राप्त लैब जाँच' : '3. NABL Accredited Lab Testing'}
                 </div>
                 <p className="timeline-desc">
-                  {primaryLang === 'hi'
-                    ? 'नमी 17.4% (मानक <20%), C4 इनवर्ट शुगर नेगेटिव (पास), भारी धातु रहित।'
-                    : 'Moisture 17.4% (Pass), C4 invert sugar screen negative (Pass), free from heavy metals.'}
-                </p>
+  {activeRecord.lab
+    ? (
+      primaryLang === 'hi'
+        ? `${activeRecord.lab.lab_name || 'प्रयोगशाला'} द्वारा ULR ${activeRecord.lab.ulr_number || 'N/A'} के तहत रिपोर्ट दर्ज है। मान्यता स्थिति: ${activeRecord.lab.accreditation_status || 'उपलब्ध नहीं'}।`
+        : `${activeRecord.lab.lab_name || 'Laboratory'} recorded under ULR ${activeRecord.lab.ulr_number || 'N/A'}. Accreditation status: ${activeRecord.lab.accreditation_status || 'Not available'}.`
+    )
+    : (
+      primaryLang === 'hi'
+        ? 'इस बैच के लिए कोई अंतिम लैब रिकॉर्ड उपलब्ध नहीं है।'
+        : 'No final laboratory record is available for this batch.'
+    )
+  }
+</p>
               </div>
             </div>
 
@@ -534,8 +750,13 @@ export default function ConsumerTraceability({
                   {primaryLang === 'hi' ? '4. कोल्ड-फिल्टर एवं जार पैकेजिंग' : '4. Cold-Filtered & Bottled'}
                 </div>
                 <p className="timeline-desc">
-                  <strong>{activeRecord.companyName || 'ABC Honey Producers Pvt Ltd'}</strong> {primaryLang === 'hi' ? 'द्वारा कम तापमान (<40°C) पर छाना गया ताकि प्राकृतिक एंजाइम और परागकण सुरक्षित रहें।' : 'Cold-filtered below 40°C to preserve natural enzymes and pollen grains.'}
-                </p>
+  <strong>
+    {activeRecord.companyName || 'Verified Producer'}
+  </strong>{' '}
+  {primaryLang === 'hi'
+    ? 'इस बैच के प्रोसेसर/निर्माता के रूप में दर्ज है।'
+    : 'is recorded as the processor/producer for this batch.'}
+</p>
               </div>
             </div>
 
@@ -548,11 +769,20 @@ export default function ConsumerTraceability({
                 <div className="timeline-title">
                   {primaryLang === 'hi' ? '5. डिजिटल सुरक्षा एवं प्रमाण' : '5. Verified Digital Certificate'}
                 </div>
-                <p className="timeline-desc">
-                  {primaryLang === 'hi' 
-                    ? `सुरक्षित ब्लॉक #${activeRecord.blockNumber || 148920} पर अपरिवर्तनीय डिजिटल रिकॉर्ड दर्ज।`
-                    : `Verified on digital ledger block #${activeRecord.blockNumber || 148920}.`}
-                </p>
+<p className="timeline-desc">
+  {activeRecord.blockNumber
+    ? (
+        primaryLang === 'hi'
+          ? `डिजिटल लेजर ब्लॉक #${activeRecord.blockNumber} पर सत्यापित।`
+          : `Verified on digital ledger block #${activeRecord.blockNumber}.`
+      )
+    : (
+        primaryLang === 'hi'
+          ? 'ब्लॉकचेन रिकॉर्ड उपलब्ध है, लेकिन ब्लॉक नंबर अभी उपलब्ध नहीं है।'
+          : 'Blockchain record is available, but the block number is not currently available.'
+      )
+  }
+</p>
               </div>
             </div>
           </div>
@@ -613,6 +843,41 @@ export default function ConsumerTraceability({
                     </button>
                   </div>
                   <div className="farmer-detail-item">
+  <span>
+    {primaryLang === 'hi'
+      ? 'लैब ULR:'
+      : 'Lab ULR:'}
+  </span>
+
+  <strong style={{ fontFamily: 'monospace' }}>
+    {h.labUlR || 'Not submitted'}
+  </strong>
+</div>
+<div className="farmer-detail-item">
+  <span>
+    {primaryLang === 'hi'
+      ? 'लैब स्थिति:'
+      : 'Lab Status:'}
+  </span>
+
+  <strong>
+    {h.labStatus || 'Unverified'}
+  </strong>
+</div>
+{h.labReport?.report_url && (
+  <a
+    href={h.labReport.report_url}
+    target="_blank"
+    rel="noreferrer"
+    className="btn btn-secondary btn-sm"
+  >
+    <FileText size={16} />
+    {primaryLang === 'hi'
+      ? 'लैब रिपोर्ट देखें'
+      : 'View Lab Report'}
+  </a>
+)}
+                  <div className="farmer-detail-item">
                     <span>{primaryLang === 'hi' ? 'फूल का प्रकार:' : 'Flora Source:'}</span>
                     <strong>🌼 {h.flowerSources ? h.flowerSources.join(', ') : 'Mustard'}</strong>
                   </div>
@@ -657,51 +922,72 @@ export default function ConsumerTraceability({
             </button>
           </div>
 
-          <div className="lab-scorecard-grid">
-            {/* Moisture */}
-            <div className={`scorecard-item ${isTampered ? 'item-fail' : 'item-pass'}`}>
-              <div className="scorecard-top">
-                <span className="scorecard-title">{primaryLang === 'hi' ? 'नमी की मात्रा (Moisture)' : 'Moisture Content'}</span>
-                <span className={`badge-score ${isTampered ? 'badge-fail' : 'badge-pass'}`}>
-                  {isTampered ? 'FAIL ❌' : 'PASS 🟢'}
-                </span>
-              </div>
-              <div className="scorecard-val">{displayMoisture}</div>
-              <div className="scorecard-limit">{primaryLang === 'hi' ? 'FSSAI मानक: 20% से कम' : 'FSSAI Limit: < 20%'}</div>
-            </div>
+<div className="lab-scorecard-grid">
 
-            {/* C4 Sugar */}
-            <div className={`scorecard-item ${isTampered ? 'item-fail' : 'item-pass'}`}>
-              <div className="scorecard-top">
-                <span className="scorecard-title">{primaryLang === 'hi' ? 'C4 शर्करा जाँच (C4 Sugar)' : 'C4 Sugar Screen'}</span>
-                <span className={`badge-score ${isTampered ? 'badge-fail' : 'badge-pass'}`}>
-                  {isTampered ? 'FAIL ❌' : 'PASS 🟢'}
-                </span>
-              </div>
-              <div className="scorecard-val">{displayC4Sugar}</div>
-              <div className="scorecard-limit">{primaryLang === 'hi' ? 'मानक: गन्ने/मक्के का सिरप शून्य' : 'Standard: Negative (0% Cane Syrup)'}</div>
-            </div>
+  <div className="scorecard-item item-pass">
+    <div className="scorecard-top">
+      <span className="scorecard-title">Laboratory</span>
+      <span className="badge-score badge-pass">VERIFIED</span>
+    </div>
 
-            {/* HMF Level */}
-            <div className="scorecard-item item-pass">
-              <div className="scorecard-top">
-                <span className="scorecard-title">{primaryLang === 'hi' ? 'ताजगी सूचकांक (HMF Level)' : 'HMF Freshness Level'}</span>
-                <span className="badge-score badge-pass">PASS 🟢</span>
-              </div>
-              <div className="scorecard-val">11.8 mg/kg</div>
-              <div className="scorecard-limit">{primaryLang === 'hi' ? 'मानक: 80 mg/kg से कम (ताजा)' : 'Limit: < 80 mg/kg (Fresh)'}</div>
-            </div>
+    <div className="scorecard-val">
+      {activeRecord.lab?.lab_name || 'Not available'}
+    </div>
 
-            {/* Pollen Count */}
-            <div className="scorecard-item item-pass">
-              <div className="scorecard-top">
-                <span className="scorecard-title">{primaryLang === 'hi' ? 'प्राकृतिक परागकण (Pollen Count)' : 'Pollen Grain Density'}</span>
-                <span className="badge-score badge-pass">PASS 🟢</span>
-              </div>
-              <div className="scorecard-val">19,400 grains/g</div>
-              <div className="scorecard-limit">{primaryLang === 'hi' ? 'मानक: प्राकृतिक पराग उपस्थित' : 'Standard: Natural Flora Intact'}</div>
-            </div>
-          </div>
+    <div className="scorecard-limit">
+      ULR: {activeRecord.lab?.ulr_number || activeRecord.labUlR || 'Not available'}
+    </div>
+  </div>
+
+  <div className="scorecard-item item-pass">
+    <div className="scorecard-top">
+      <span className="scorecard-title">NABL Certificate</span>
+      <span className="badge-score badge-pass">ACTIVE</span>
+    </div>
+
+    <div className="scorecard-val">
+      {activeRecord.lab?.nabl_certificate_number || 'Not available'}
+    </div>
+
+    <div className="scorecard-limit">
+      Accreditation: {activeRecord.lab?.accreditation_status || 'Not available'}
+    </div>
+  </div>
+
+  <div className="scorecard-item item-pass">
+    <div className="scorecard-top">
+      <span className="scorecard-title">Report Number</span>
+      <span className="badge-score badge-pass">RECORDED</span>
+    </div>
+
+    <div className="scorecard-val">
+      {activeRecord.lab?.report_number || 'Not available'}
+    </div>
+
+    <div className="scorecard-limit">
+      Sample ID: {activeRecord.lab?.sample_id || 'Not available'}
+    </div>
+  </div>
+
+  <div className="scorecard-item item-pass">
+    <div className="scorecard-top">
+      <span className="scorecard-title">Report Date</span>
+      <span className="badge-score badge-pass">RECORDED</span>
+    </div>
+
+    <div className="scorecard-val">
+      {activeRecord.lab?.report_date
+        ? new Date(activeRecord.lab.report_date).toLocaleDateString()
+        : 'Not available'
+      }
+    </div>
+
+    <div className="scorecard-limit">
+      Status: {activeRecord.lab?.accreditation_status || 'Not available'}
+    </div>
+  </div>
+
+</div>
         </section>
 
         {/* 6. COLLAPSIBLE TECHNICAL & SECURITY DRAWER */}
@@ -732,8 +1018,12 @@ export default function ConsumerTraceability({
                 color: isTampered ? 'var(--color-danger)' : '#7C3AED',
                 fontWeight: 800
               }}>
-                {isTampered ? '⚠️ Record Mismatch' : `🟢 Block #${activeRecord.blockNumber || 148920} Confirmed`}
-              </span>
+{isTampered
+  ? '⚠️ Record Mismatch'
+  : activeRecord.blockNumber
+    ? `🟢 Block #${activeRecord.blockNumber} Confirmed`
+    : '🟢 Registry Record Verified'
+}              </span>
               {showBlockchainDetails ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
             </div>
           </div>
@@ -757,8 +1047,12 @@ export default function ConsumerTraceability({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.25rem', borderTop: '1px dashed var(--color-border)', paddingTop: '1rem' }}>
                 <div>
                   <span className="blockchain-label">{primaryLang === 'hi' ? 'ब्लॉक संख्या:' : 'BLOCK NUMBER:'}</span>
-                  <div style={{ fontWeight: 800, fontSize: '1rem' }}>#{activeRecord.blockNumber || 148920}</div>
-                </div>
+<div style={{ fontWeight: 800, fontSize: '1rem' }}>
+  {activeRecord.blockNumber
+    ? `#${activeRecord.blockNumber}`
+    : 'Not available'
+  }
+</div>                </div>
                 <div>
                   <span className="blockchain-label">{primaryLang === 'hi' ? 'समय:' : 'TIMESTAMP:'}</span>
                   <div style={{ fontSize: '0.9rem' }}>{activeRecord.timestamp}</div>
@@ -798,8 +1092,10 @@ export default function ConsumerTraceability({
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
             <div className="modal-header">
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-                {primaryLang === 'hi' ? 'आधिकारिक NABL लैब शुद्धता प्रमाणपत्र' : 'Official NABL Purity Certificate'}
-              </h3>
+{primaryLang === 'hi'
+  ? 'लैब सत्यापन विवरण'
+  : 'Laboratory Verification Details'
+}              </h3>
               <button 
                 type="button"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} 

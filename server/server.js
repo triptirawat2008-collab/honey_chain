@@ -547,9 +547,14 @@ app.get('/api/batches/verify/:batchId', async (req, res) => {
   }
 });
 
+
 app.get('/api/trace/:traceId', async (req, res) => {
   try {
     const { traceId } = req.params;
+
+    // ==========================================
+    // 1. CHECK IF TRACE ID IS A BATCH
+    // ==========================================
 
     const batchQuery = `
       SELECT
@@ -562,12 +567,7 @@ app.get('/api/trace/:traceId', async (req, res) => {
         b.final_lab_ulr,
         b.ulr_status,
         b.is_lab_certified,
-        b.manual_report_certified,
-        b.company_license,
-        b.product_name,
-        b.quantity_kg,
-        b.created_at,
-        COALESCE(lr.company_name, 'Verified Producer') AS company_name
+        b.manual_report_certified
       FROM batches b
       LEFT JOIN verification.license_registry lr
         ON lr.license_number = b.company_license
@@ -577,7 +577,12 @@ app.get('/api/trace/:traceId', async (req, res) => {
     const batchRes = await pool.query(batchQuery, [traceId]);
 
     if (batchRes.rows.length > 0) {
+
       const batch = batchRes.rows[0];
+
+      // ==========================================
+      // 2. GET ALL HARVESTS LINKED TO THIS BATCH
+      // ==========================================
 
       const harvestQuery = `
         SELECT
@@ -585,7 +590,6 @@ app.get('/api/trace/:traceId', async (req, res) => {
           h.beekeeper_id,
           br.registered_name AS beekeeper_name,
           br.state,
-          br.district,
           al.name AS location_name,
           h.harvest_date,
           h.flower_sources,
@@ -596,7 +600,8 @@ app.get('/api/trace/:traceId', async (req, res) => {
           h.block_hash,
           h.tx_ref
         FROM batch_harvest_mapping bhm
-        JOIN harvests h ON h.harvest_id = bhm.harvest_id
+        JOIN harvests h
+          ON h.harvest_id = bhm.harvest_id
         LEFT JOIN verification.beekeeper_registry br
           ON br.beekeeper_id = h.beekeeper_id
         LEFT JOIN apiary_locations al
@@ -605,53 +610,115 @@ app.get('/api/trace/:traceId', async (req, res) => {
         ORDER BY h.harvest_date DESC, h.harvest_id ASC
       `;
 
-      const harvestRes = await pool.query(harvestQuery, [traceId]);
+      const harvestRes = await pool.query(
+        harvestQuery,
+        [traceId]
+      );
 
-      const labQuery = `
-        SELECT
-          ulr_number,
-          lab_name,
-          laboratory_name,
-          lab_address,
-          report_url,
-          report_path,
-          status,
-          verification_status,
-          created_at
-        FROM verification.lab_report_registry
-        WHERE ulr_number = $1
-        LIMIT 1
-      `;
+      const harvests = harvestRes.rows;
 
-      let lab = null;
-      let labReport = null;
+      // ==========================================
+      // 3. GET LAB REPORT FOR EACH HARVEST
+      // ==========================================
+
+      const harvestLabReports = [];
+
+      for (const harvest of harvests) {
+
+        if (!harvest.lab_ulr) {
+          harvestLabReports.push({
+            harvest_id: harvest.harvest_id,
+            lab: null
+          });
+
+          continue;
+        }
+
+        const labResult = await pool.query(
+          `
+          SELECT
+            ulr_number,
+            lab_id,
+            lab_name,
+            nabl_certificate_number,
+            accreditation_status,
+            state,
+            city,
+            report_number,
+            report_date,
+            sample_id
+          FROM verification.lab_report_registry
+          WHERE ulr_number = $1
+          LIMIT 1
+          `,
+          [harvest.lab_ulr]
+        );
+
+        harvestLabReports.push({
+          harvest_id: harvest.harvest_id,
+          lab: labResult.rows[0] || null
+        });
+      }
+
+      // ==========================================
+      // 4. GET FINAL COMPANY LAB REPORT
+      // ==========================================
+
+      let companyLab = null;
 
       if (batch.final_lab_ulr) {
-        const labRes = await pool.query(labQuery, [batch.final_lab_ulr]);
-        if (labRes.rows.length > 0) {
-          lab = labRes.rows[0];
-          labReport = {
-            report_url: lab.report_url || lab.report_path || null,
-            report_path: lab.report_path || null,
-            report_field: 'verification.lab_report_registry.report_url / report_path'
-          };
+
+        const companyLabResult = await pool.query(
+          `
+          SELECT
+            ulr_number,
+            lab_id,
+            lab_name,
+            nabl_certificate_number,
+            accreditation_status,
+            state,
+            city,
+            report_number,
+            report_date,
+            sample_id
+          FROM verification.lab_report_registry
+          WHERE ulr_number = $1
+          LIMIT 1
+          `,
+          [batch.final_lab_ulr]
+        );
+
+        if (companyLabResult.rows.length > 0) {
+          companyLab = companyLabResult.rows[0];
         }
       }
+
+      // ==========================================
+      // 5. RETURN COMPLETE BATCH TRACEABILITY
+      // ==========================================
 
       return res.json({
         verified: true,
         recordType: 'batch',
-        batch,
+
+        batch: batch,
+
         company: {
           company_name: batch.company_name || null,
           company_license: batch.company_license || null
         },
-        harvests: harvestRes.rows,
-        lab,
-        labReport,
-        report_storage_hint: 'If a lab report is not stored in the database, use the existing verification.lab_report_registry.report_url/report_path field.'
+
+        lab: companyLab,
+
+        harvests: harvests,
+
+        harvestLabReports: harvestLabReports
       });
     }
+
+    // ==========================================
+    // 6. IF NOT A BATCH, CHECK IF IT IS A HARVEST
+    // ==========================================
 
     const harvestQuery = `
       SELECT
@@ -659,7 +726,6 @@ app.get('/api/trace/:traceId', async (req, res) => {
         h.beekeeper_id,
         br.registered_name AS beekeeper_name,
         br.state,
-        br.district,
         al.name AS location_name,
         h.harvest_date,
         h.flower_sources,
@@ -668,7 +734,10 @@ app.get('/api/trace/:traceId', async (req, res) => {
         h.ulr_status,
         h.block_hash,
         h.tx_ref,
-        COALESCE(h.ulr_status, 'Unverified') AS verification_status,
+        COALESCE(
+          h.ulr_status,
+          'Unverified'
+        ) AS verification_status,
         al.location_id,
         al.gps_coordinates
       FROM harvests h
@@ -679,7 +748,10 @@ app.get('/api/trace/:traceId', async (req, res) => {
       WHERE h.harvest_id = $1
     `;
 
-    const harvestRes = await pool.query(harvestQuery, [traceId]);
+    const harvestRes = await pool.query(
+      harvestQuery,
+      [traceId]
+    );
 
     if (harvestRes.rows.length === 0) {
       return res.status(404).json({
@@ -690,23 +762,74 @@ app.get('/api/trace/:traceId', async (req, res) => {
 
     const harvest = harvestRes.rows[0];
 
+    // ==========================================
+    // 7. GET HARVEST LAB REPORT
+    // ==========================================
+
+    let harvestLab = null;
+
+    if (harvest.lab_ulr) {
+
+      const labResult = await pool.query(
+        `
+        SELECT
+          ulr_number,
+          lab_id,
+          lab_name,
+          nabl_certificate_number,
+          accreditation_status,
+          state,
+          city,
+          report_number,
+          report_date,
+          sample_id
+        FROM verification.lab_report_registry
+        WHERE ulr_number = $1
+        LIMIT 1
+        `,
+        [harvest.lab_ulr]
+      );
+
+      if (labResult.rows.length > 0) {
+        harvestLab = labResult.rows[0];
+      }
+    }
+
+    // ==========================================
+    // 8. RETURN HARVEST TRACEABILITY
+    // ==========================================
+
     return res.json({
       verified: true,
       recordType: 'harvest',
-      harvest,
+
+      harvest: harvest,
+
       company: {
         company_name: null,
         company_license: null
       },
+
       harvests: [harvest],
-      lab: null,
-      labReport: null
+
+      lab: harvestLab,
+
+      harvestLabReports: [
+        {
+          harvest_id: harvest.harvest_id,
+          lab: harvestLab
+        }
+      ]
     });
+
   } catch (error) {
+
     console.error('Traceability fetch error:', error);
+
     return res.status(500).json({
       verified: false,
-      message: 'Failed to fetch traceability data'
+      message: 'Failed to fetch traceability data',
+      error: error.message
     });
   }
 });

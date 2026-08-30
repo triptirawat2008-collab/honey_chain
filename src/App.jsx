@@ -43,21 +43,27 @@ function App() {
   const [reminders, setReminders] = useState([]);
   const [history, setHistory] = useState([]);
 
-  useEffect(() => {
-    const syncConsumerRoute = () => {
-      const match = window.location.pathname.match(/^\/trace\/(.+)$/);
-      if (match) {
-        const batchId = decodeURIComponent(match[1]);
-        setActiveTraceId(batchId);
-        setView('consumer-trace');
-      }
-    };
+useEffect(() => {
+  const syncConsumerRoute = () => {
+    const match = window.location.pathname.match(/^\/trace\/(.+)$/);
 
-    syncConsumerRoute();
-    window.addEventListener('popstate', syncConsumerRoute);
+    if (match) {
+      const traceId = decodeURIComponent(match[1]);
+      setActiveTraceId(traceId);
+      setView('consumer-trace');
+    }
+  };
 
-    return () => window.removeEventListener('popstate', syncConsumerRoute);
-  }, []);
+  syncConsumerRoute();
+
+  window.addEventListener('popstate', syncConsumerRoute);
+
+  return () => {
+    window.removeEventListener('popstate', syncConsumerRoute);
+  };
+}, []);
+
+
 
   useEffect(() => {
     if (view === 'consumer-trace' && activeTraceId) {

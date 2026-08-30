@@ -8,48 +8,48 @@ export default function CompanyRegistration({ setView, setCompanyUser, primaryLa
   const [verificationResult, setVerificationResult] = useState(null); // 'success', 'expired', 'not_found'
   const [record, setRecord] = useState(null);
 
-  const handleVerify = async (licToVerify) => {
-    const rawLic = licToVerify || licenseNumber;
-    const trimmedLicense = rawLic.trim().toUpperCase();
+const handleVerify = async (licToVerify) => {
+  const rawLic = licToVerify || licenseNumber;
+  const trimmedLicense = rawLic.trim().toUpperCase();
 
-    if (!trimmedLicense) {
-      setVerificationResult('not_found');
-      setRecord(null);
+  if (!trimmedLicense) {
+    setVerificationResult('not_found');
+    setRecord(null);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/verify/license/${encodeURIComponent(trimmedLicense)}`
+    );
+
+    const result = await response.json();
+
+    if (response.ok && result.verified) {
+      const verifiedRecord = {
+        ...result.data,
+        licenseNumber: result.data.license_number,
+        companyName: result.data.company_name,
+        status: String(result.data.license_status || '').trim().toUpperCase()
+      };
+
+      setVerificationResult(
+        verifiedRecord.status === 'ACTIVE' ? 'success' : 'expired'
+      );
+
+      setRecord(verifiedRecord);
       return;
     }
 
-    const registryEntry = LICENSE_REGISTRY[trimmedLicense];
+    setVerificationResult('not_found');
+    setRecord(null);
 
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/verify/license/${encodeURIComponent(trimmedLicense)}`
-      );
-      const result = await response.json();
-
-      if (response.ok && result.verified) {
-        const verifiedRecord = {
-          ...result.data,
-          licenseNumber: result.data.license_number,
-          companyName: result.data.company_name,
-          status: String(result.data.license_status || '').trim().toUpperCase()
-        };
-        setVerificationResult(verifiedRecord.status === 'ACTIVE' ? 'success' : 'expired');
-        setRecord(verifiedRecord);
-        return;
-      }
-    } catch (error) {
-      console.warn('License API unavailable; using synthetic registry:', error);
-    }
-
-    if (registryEntry) {
-      const status = String(registryEntry.status || '').trim().toUpperCase();
-      setVerificationResult(status === 'ACTIVE' ? 'success' : 'expired');
-      setRecord(registryEntry);
-    } else {
-      setVerificationResult('not_found');
-      setRecord(null);
-    }
-  };
+  } catch (error) {
+    console.warn('License API unavailable:', error);
+    setVerificationResult('not_found');
+    setRecord(null);
+  }
+};
 
   const handleContinue = () => {
     if (record && verificationResult === 'success') {

@@ -34,6 +34,7 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [customFlower, setCustomFlower] = useState('');
   const [customLocationText, setCustomLocationText] = useState('');
   const [labName, setLabName] = useState('Demo Honey Testing Laboratory (NABL #104)');
+  const [labVerificationError, setLabVerificationError] = useState('');
   const [labReportFile, setLabReportFile] = useState(null);
   const [labPhotoCaptured, setLabPhotoCaptured] = useState(false);
   const [gpsDetecting, setGpsDetecting] = useState(false);
@@ -74,7 +75,16 @@ const [ulrStatus, setUlrStatus] = useState(null);
     { id: "Multifloral", nameEn: "Multifloral", nameHi: "बहुपुष्पी (जंगली फूल)", icon: "💐" }
   ];
 const handleVerifyULR = async () => {
+    if (!ulrNumber.trim()) {
+      setUlrStatus("invalid");
+      setLabVerificationError("ULR ID must be verified before continuing.");
+      return;
+    }
+
     try {
+        setUlrStatus("checking");
+        setLabVerificationError('');
+
         const response = await fetch(
             "/api/verify-ulr",
             {
@@ -95,13 +105,19 @@ const handleVerifyULR = async () => {
         if (data.verified) {
             // ULR exists
             setLabName(data.lab.lab_name);
+            setUlrStatus("verified");
+            setLabVerificationError('');
         } else {
             // ULR doesn't exist
+            setUlrStatus("invalid");
+            setLabVerificationError("ULR ID must be verified before continuing.");
             alert("Invalid ULR Number");
         }
 
     } catch (error) {
         console.error("ULR verification error:", error);
+        setUlrStatus("invalid");
+        setLabVerificationError("ULR ID must be verified before continuing.");
         alert("Could not connect to the server");
     }
 };
@@ -281,6 +297,7 @@ const resetHarvestForm = () => {
     setCustomLocationText('');
     setLabReportFile(null);
     setLabPhotoCaptured(false);
+    setLabVerificationError('');
     
     // 👇 ADD THESE THREE LINES TO PREVENT DUPLICATE DATABASE ERRORS
     setUlrNumber('');
@@ -1320,54 +1337,63 @@ const handleExecuteMove = () => {
 
     <h3>Lab Verification</h3>
 
-    {/* Lab Name */}
-    <div className="form-group">
-        <label>Lab Name</label>
+    <div className="lab-verification-grid">
+      {/* Lab Name */}
+      <div className="form-group lab-verification-field">
+          <label>Lab Name</label>
 
-        <input
-            type="text"
-            value={labName}
-            onChange={(e) => setLabName(e.target.value)}
-            placeholder="Enter laboratory name"
-        />
+          <input
+              type="text"
+              value={labName}
+              onChange={(e) => {
+                setLabName(e.target.value);
+                setLabVerificationError('');
+              }}
+              placeholder="Enter laboratory name"
+          />
+      </div>
+
+      {/* ULR Number */}
+      <div className="form-group lab-verification-field">
+          <label>ULR ID</label>
+
+          <div className="ulr-input-row">
+              <input
+                  type="text"
+                  value={ulrNumber}
+                  onChange={(e) => {
+                      setUlrNumber(e.target.value);
+                      setUlrStatus(null);
+                      setLabVerificationError('');
+                  }}
+                  placeholder="Enter ULR ID"
+              />
+              <button
+                  type="button"
+                  className="btn btn-secondary ulr-verify-btn"
+                  onClick={handleVerifyULR}
+              >
+                  Verify
+              </button>
+          </div>
+      </div>
     </div>
 
-    {/* ULR Number */}
-    <div className="form-group">
-        <label>ULR ID</label>
+    {ulrStatus === "checking" && (
+      <p className="ulr-status-message checking">Checking ULR ID...</p>
+    )}
 
-        <div className="ulr-input-container">
+    {ulrStatus === "verified" && (
+      <p className="ulr-status-message success">✓ ULR ID verified</p>
+    )}
 
-            <input
-                type="text"
-                value={ulrNumber}
-                onChange={(e) => {
-                    setUlrNumber(e.target.value);
-                    setUlrStatus(null);
-                }}
-                placeholder="Enter ULR ID"
-            />
-            {ulrStatus === "checking" && (
-    <p>Checking ULR ID...</p>
-)}
+    {ulrStatus === "invalid" && (
+      <p className="ulr-status-message error">✕ ULR ID not found</p>
+    )}
 
-{ulrStatus === "verified" && (
-    <p>✓ ULR ID verified</p>
-)}
-
-{ulrStatus === "invalid" && (
-    <p>✕ ULR ID not found</p>
-)}
-
-            <button
-                type="button"
-              onClick={handleVerifyULR}
-            >
-                Verify
-            </button>
-
-        </div>
-    </div>
+    {labVerificationError && (
+      <p className="ulr-status-message validation">⚠ {labVerificationError}</p>
+    )}
 
 </div>
 
@@ -1415,7 +1441,25 @@ const handleExecuteMove = () => {
                     <button className="btn btn-secondary" onClick={() => setWizardStep(4)}>
                       <ArrowLeft size={18} /> {primaryLang === 'hi' ? 'पीछे' : 'Back'}
                     </button>
-                    <button className="btn btn-green btn-wizard-next" onClick={startVerificationProcess}>
+                    <button className="btn btn-green btn-wizard-next" onClick={() => {
+                      if (!labName.trim()) {
+                        setLabVerificationError('Lab Name is required before continuing.');
+                        return;
+                      }
+
+                      if (!ulrNumber.trim()) {
+                        setLabVerificationError('ULR ID must be entered before continuing.');
+                        return;
+                      }
+
+                      if (ulrStatus !== 'verified') {
+                        setLabVerificationError('ULR ID must be verified before continuing.');
+                        return;
+                      }
+
+                      setLabVerificationError('');
+                      startVerificationProcess();
+                    }}>
                       <span>{primaryLang === 'hi' ? 'सत्यापित करें व QR कोड बनाएं' : 'Verify & Generate QR'}</span>
                       <Sparkles size={20} />
                     </button>
