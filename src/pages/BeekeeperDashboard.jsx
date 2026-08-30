@@ -33,6 +33,7 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [selectedFlowers, setSelectedFlowers] = useState(['Mustard']);
   const [customFlower, setCustomFlower] = useState('');
   const [customLocationText, setCustomLocationText] = useState('');
+  const [harvestQuantity, setHarvestQuantity] = useState(160);
   const [labName, setLabName] = useState('Demo Honey Testing Laboratory (NABL #104)');
   const [labVerificationError, setLabVerificationError] = useState('');
   const [labReportFile, setLabReportFile] = useState(null);
@@ -290,7 +291,7 @@ const startVerificationProcess = async () => {
             ulr_status: ulrStatus || "Verified",
             block_hash: hashVal,
             tx_ref: txRefVal,
-            quantity_kg: 160
+            quantity_kg: Number(harvestQuantity) || 0
           };
 
           try {
@@ -315,7 +316,7 @@ const startVerificationProcess = async () => {
               ulr_status: ulrStatus || 'Verified',
               block_hash: hashVal,
               tx_ref: txRefVal,
-              quantity_kg: 160,
+              quantity_kg: Number(harvestQuantity) || 0,
               location_name: customLocationText || (targetApiary ? targetApiary.name : 'Rampur Apiary')
             });
 
@@ -351,6 +352,7 @@ const resetHarvestForm = () => {
     setSelectedFlowers(['Mustard']);
     setCustomFlower('');
     setCustomLocationText('');
+    setHarvestQuantity(160);
     setGpsCoordinates(null);
     setGpsDetected('Location not set yet');
     setLabReportFile(null);
@@ -545,6 +547,46 @@ useEffect(() => {
 
     fetchHarvests();
   }, [user?.beekeeperId, setHarvests]);
+
+  const handleUseCurrentLocationForMove = () => {
+    if (!navigator.geolocation) {
+      alert(primaryLang === 'hi'
+        ? 'यह ब्राउज़र वर्तमान स्थान का उपयोग नहीं करता है। कृपया मैन्युअल GPS निर्देशांक दर्ज करें।'
+        : 'Current location is not supported in this browser. Please enter GPS coordinates manually.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const formattedGps = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        setNewGps(formattedGps);
+      },
+      (error) => {
+        const messageMap = {
+          1: primaryLang === 'hi'
+            ? 'स्थान की अनुमति अस्वीकार की गई। कृपया स्थान एक्सेस की अनुमति दें या मैन्युअल GPS निर्देशांक दर्ज करें।'
+            : 'Location permission was denied. Please allow location access or enter the GPS coordinates manually.',
+          2: primaryLang === 'hi'
+            ? 'वर्तमान स्थान निर्धारित नहीं किया जा सका। कृपया GPS निर्देशांक मैन्युअल रूप से दर्ज करें।'
+            : 'Current location could not be determined. Please enter GPS coordinates manually.',
+          3: primaryLang === 'hi'
+            ? 'स्थान अनुरोध का समय समाप्त हो गया। कृपया फिर से प्रयास करें या मैन्युअल GPS दर्ज करें।'
+            : 'Location request timed out. Please try again or enter GPS coordinates manually.'
+        };
+
+        alert(messageMap[error.code] || (primaryLang === 'hi'
+          ? 'वर्तमान स्थान निर्धारित नहीं किया जा सका। कृपया GPS निर्देशांक मैन्युअल रूप से दर्ज करें।'
+          : 'Current location could not be determined. Please enter GPS coordinates manually.'));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+  };
 
 const handleExecuteMove = () => {
     if (!newGps) {
@@ -1370,6 +1412,23 @@ const handleExecuteMove = () => {
                           </div>
                         );
                       })}
+                    </div>
+
+                    <div className="form-group" style={{ marginTop: '1.25rem' }}>
+                      <label className="form-label" htmlFor="harvest-quantity-input">
+                        {primaryLang === 'hi' ? 'शहद की मात्रा (kg)' : 'Honey Quantity (kg)'}
+                      </label>
+                      <input
+                        id="harvest-quantity-input"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        className="form-input"
+                        value={harvestQuantity}
+                        onChange={(e) => setHarvestQuantity(e.target.value)}
+                        style={{ height: '56px', fontSize: '1.05rem' }}
+                        required
+                      />
                     </div>
                   </div>
 
@@ -2207,6 +2266,16 @@ const handleExecuteMove = () => {
               <label className="form-label" htmlFor="move-new-gps">
                 {primaryLang === 'hi' ? 'नया GPS निर्देशांक (latitude, longitude):' : 'New GPS Coordinates:'}
               </label>
+
+              <button
+                type="button"
+                className="btn btn-outline-green"
+                onClick={handleUseCurrentLocationForMove}
+                style={{ width: '100%', marginBottom: '0.75rem', minHeight: '44px' }}
+              >
+                {primaryLang === 'hi' ? '📍 वर्तमान स्थान का उपयोग करें' : '📍 Use Current Location'}
+              </button>
+
               <input 
                 id="move-new-gps"
                 type="text" 
