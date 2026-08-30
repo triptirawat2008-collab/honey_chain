@@ -8,7 +8,6 @@ import {
   ChevronRight, RefreshCw
 } from 'lucide-react';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
-import { generateMockHash } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
 
 export default function BeekeeperDashboard({ 
@@ -33,11 +32,14 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [selectedFlowers, setSelectedFlowers] = useState(['Mustard']);
   const [customFlower, setCustomFlower] = useState('');
   const [customLocationText, setCustomLocationText] = useState('');
+  const [harvestQuantity, setHarvestQuantity] = useState(160);
   const [labName, setLabName] = useState('Demo Honey Testing Laboratory (NABL #104)');
+  const [labVerificationError, setLabVerificationError] = useState('');
   const [labReportFile, setLabReportFile] = useState(null);
   const [labPhotoCaptured, setLabPhotoCaptured] = useState(false);
   const [gpsDetecting, setGpsDetecting] = useState(false);
-  const [gpsDetected, setGpsDetected] = useState('28.8041° N, 79.0250° E (Rampur, UP)');
+  const [gpsDetected, setGpsDetected] = useState('Location not set yet');
+  const [gpsCoordinates, setGpsCoordinates] = useState(null);
   
   // Verification progress simulation in step 6
   const [verificationStep, setVerificationStep] = useState(0); // 0: idle, 1: id, 2: lab, 3: report, 4: ledger, 5: done
@@ -64,6 +66,31 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [newRemDate, setNewRemDate] = useState('');
   const [newRemNotes, setNewRemNotes] = useState('');
 
+  const persistReminderStorage = (nextReminders) => {
+    if (!user?.beekeeperId) return;
+    const storageKey = `honeychain_alerts_${user.beekeeperId}`;
+    localStorage.setItem(storageKey, JSON.stringify(nextReminders));
+  };
+
+  useEffect(() => {
+    if (!user?.beekeeperId) return;
+
+    const storageKey = `honeychain_alerts_${user.beekeeperId}`;
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setReminders(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setReminders([]);
+      }
+    } catch (error) {
+      console.error('Failed to load saved reminders:', error);
+      setReminders([]);
+    }
+  }, [user?.beekeeperId, setReminders]);
+
   // Floral options with rich icons
   const flowerOptions = [
     { id: "Mustard", nameEn: "Mustard", nameHi: "सरसों", icon: "🌼" },
@@ -74,7 +101,16 @@ const [ulrStatus, setUlrStatus] = useState(null);
     { id: "Multifloral", nameEn: "Multifloral", nameHi: "बहुपुष्पी (जंगली फूल)", icon: "💐" }
   ];
 const handleVerifyULR = async () => {
+    if (!ulrNumber.trim()) {
+      setUlrStatus("invalid");
+      setLabVerificationError("ULR ID must be verified before continuing.");
+      return;
+    }
+
     try {
+        setUlrStatus("checking");
+        setLabVerificationError('');
+
         const response = await fetch(
             "/api/verify-ulr",
             {
@@ -95,13 +131,19 @@ const handleVerifyULR = async () => {
         if (data.verified) {
             // ULR exists
             setLabName(data.lab.lab_name);
+            setUlrStatus("verified");
+            setLabVerificationError('');
         } else {
             // ULR doesn't exist
+            setUlrStatus("invalid");
+            setLabVerificationError("ULR ID must be verified before continuing.");
             alert("Invalid ULR Number");
         }
 
     } catch (error) {
         console.error("ULR verification error:", error);
+        setUlrStatus("invalid");
+        setLabVerificationError("ULR ID must be verified before continuing.");
         alert("Could not connect to the server");
     }
 };
@@ -163,13 +205,42 @@ const handleAddNewLocationBackend = async () => {
     }
   };
 
-  // GPS Auto-detect simulation
+  // GPS Auto-detect using the browser's real geolocation API.
   const handleAutoDetectGps = () => {
+    if (!navigator.geolocation) {
+      setGpsDetected('Geolocation is not supported by this browser.');
+      return;
+    }
+
     setGpsDetecting(true);
-    setTimeout(() => {
-      setGpsDetecting(false);
-      setGpsDetected('28.8041° N, 79.0250° E (Rampur, UP - Detected via GPS)');
-    }, 900);
+    setGpsCoordinates(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const currentCoords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+        setGpsCoordinates({ latitude, longitude });
+        setGpsDetected(`${currentCoords} (Current location)`);
+        setGpsDetecting(false);
+      },
+      (error) => {
+        const messageMap = {
+          1: 'Location permission denied. Please allow access and retry.',
+          2: 'Location unavailable. Please try again.',
+          3: 'Location request timed out. Please try again.'
+        };
+
+        setGpsDetected(messageMap[error.code] || 'Unable to determine your current location. Please try again.');
+        setGpsDetecting(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   // Voice note simulation for health log
@@ -203,10 +274,7 @@ const startVerificationProcess = async () => {
           // Generate Harvest ID
           const targetApiary = apiaries.find(a => a.locationId === selectedApiaryId);
           const dateStr = harvestDate.replace(/-/g, '');
-          const newHarvestId = `HB-${user.beekeeperId}-${dateStr}-${Date.now().toString().slice(-4)}`;          
-          const rawString = `${newHarvestId}|${user.beekeeperId}|${harvestDate}|${selectedFlowers.join(',')}`;
-          const hashVal = generateMockHash(rawString);
-          const txRefVal = "0x" + generateMockHash(hashVal).substring(0, 60);
+          const newHarvestId = `HB-${user.beekeeperId}-${dateStr}-${Date.now().toString().slice(-4)}`;
 
           const newHarvestPayload = {
             harvest_id: newHarvestId,
@@ -214,11 +282,10 @@ const startVerificationProcess = async () => {
             harvest_date: harvestDate,
             flower_sources: selectedFlowers,
             location_id: selectedApiaryId,
+            gps_coordinates: gpsCoordinates ? `${gpsCoordinates.latitude.toFixed(6)}, ${gpsCoordinates.longitude.toFixed(6)}` : null,
             lab_ulr: ulrNumber || null,
             ulr_status: ulrStatus || "Verified",
-            block_hash: hashVal,
-            tx_ref: txRefVal,
-            quantity_kg: 160
+            quantity_kg: Number(harvestQuantity) || 0
           };
 
           try {
@@ -241,9 +308,9 @@ const startVerificationProcess = async () => {
               location_id: selectedApiaryId,
               lab_ulr: ulrNumber || null,
               ulr_status: ulrStatus || 'Verified',
-              block_hash: hashVal,
-              tx_ref: txRefVal,
-              quantity_kg: 160,
+              block_hash: null,
+              tx_ref: null,
+              quantity_kg: Number(harvestQuantity) || 0,
               location_name: customLocationText || (targetApiary ? targetApiary.name : 'Rampur Apiary')
             });
 
@@ -279,8 +346,12 @@ const resetHarvestForm = () => {
     setSelectedFlowers(['Mustard']);
     setCustomFlower('');
     setCustomLocationText('');
+    setHarvestQuantity(160);
+    setGpsCoordinates(null);
+    setGpsDetected('Location not set yet');
     setLabReportFile(null);
     setLabPhotoCaptured(false);
+    setLabVerificationError('');
     
     // 👇 ADD THESE THREE LINES TO PREVENT DUPLICATE DATABASE ERRORS
     setUlrNumber('');
@@ -471,6 +542,46 @@ useEffect(() => {
     fetchHarvests();
   }, [user?.beekeeperId, setHarvests]);
 
+  const handleUseCurrentLocationForMove = () => {
+    if (!navigator.geolocation) {
+      alert(primaryLang === 'hi'
+        ? 'यह ब्राउज़र वर्तमान स्थान का उपयोग नहीं करता है। कृपया मैन्युअल GPS निर्देशांक दर्ज करें।'
+        : 'Current location is not supported in this browser. Please enter GPS coordinates manually.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const formattedGps = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        setNewGps(formattedGps);
+      },
+      (error) => {
+        const messageMap = {
+          1: primaryLang === 'hi'
+            ? 'स्थान की अनुमति अस्वीकार की गई। कृपया स्थान एक्सेस की अनुमति दें या मैन्युअल GPS निर्देशांक दर्ज करें।'
+            : 'Location permission was denied. Please allow location access or enter the GPS coordinates manually.',
+          2: primaryLang === 'hi'
+            ? 'वर्तमान स्थान निर्धारित नहीं किया जा सका। कृपया GPS निर्देशांक मैन्युअल रूप से दर्ज करें।'
+            : 'Current location could not be determined. Please enter GPS coordinates manually.',
+          3: primaryLang === 'hi'
+            ? 'स्थान अनुरोध का समय समाप्त हो गया। कृपया फिर से प्रयास करें या मैन्युअल GPS दर्ज करें।'
+            : 'Location request timed out. Please try again or enter GPS coordinates manually.'
+        };
+
+        alert(messageMap[error.code] || (primaryLang === 'hi'
+          ? 'वर्तमान स्थान निर्धारित नहीं किया जा सका। कृपया GPS निर्देशांक मैन्युअल रूप से दर्ज करें।'
+          : 'Current location could not be determined. Please enter GPS coordinates manually.'));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+  };
+
 const handleExecuteMove = () => {
     if (!newGps) {
       alert("Please provide GPS coordinates.");
@@ -642,7 +753,11 @@ const handleExecuteMove = () => {
       status: 'Pending'
     };
 
-    setReminders([newRem, ...reminders]);
+    setReminders(prev => {
+      const updated = [newRem, ...prev];
+      persistReminderStorage(updated);
+      return updated;
+    });
     setNewRemTitle('');
     setNewRemDate('');
     setNewRemNotes('');
@@ -650,13 +765,16 @@ const handleExecuteMove = () => {
   };
 
   const handleToggleReminder = (id) => {
-    const updated = reminders.map(r => {
-      if (r.id === id) {
-        return { ...r, status: r.status === 'Pending' ? 'Completed' : 'Pending' };
-      }
-      return r;
+    setReminders(prev => {
+      const updated = prev.map(r => {
+        if (r.id === id) {
+          return { ...r, status: r.status === 'Pending' ? 'Completed' : 'Pending' };
+        }
+        return r;
+      });
+      persistReminderStorage(updated);
+      return updated;
     });
-    setReminders(updated);
   };
 
   const myHarvests = harvests.filter(h => h.beekeeperId === user.beekeeperId);
@@ -920,7 +1038,6 @@ const handleExecuteMove = () => {
                         <th>{primaryLang === 'hi' ? 'फूल का प्रकार' : 'Flower Source'}</th>
                         <th>{primaryLang === 'hi' ? 'स्थान' : 'Location'}</th>
                         <th>{primaryLang === 'hi' ? 'लैब जाँच' : 'Lab Status'}</th>
-                        <th>{primaryLang === 'hi' ? 'ब्लॉकचेन' : 'Blockchain'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -943,11 +1060,6 @@ const handleExecuteMove = () => {
                           <td>
                             <span className="badge-active" style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontWeight: 700 }}>
                               🟢 ✓ {h.labStatus}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="blockchain-status-tag">
-                              <ShieldCheck size={14} /> {h.blockchainStatus}
                             </span>
                           </td>
                         </tr>
@@ -1145,7 +1257,7 @@ const handleExecuteMove = () => {
                     >
                       <MapPin size={28} className={gpsDetecting ? 'pulse-icon' : ''} />
                       <div style={{ textAlign: 'left' }}>
-                        <div>{gpsDetecting ? (primaryLang === 'hi' ? 'जीपीएस खोजा जा रहा है...' : 'Detecting GPS...') : (primaryLang === 'hi' ? '📍 फोन जीपीएस से स्थान लें (Auto-Detect GPS)' : '📍 Auto-Detect GPS Location')}</div>
+                        <div>{gpsDetecting ? (primaryLang === 'hi' ? 'जीपीएस खोजा जा रहा है...' : 'Detecting GPS...') : (primaryLang === 'hi' ? '📍 वर्तमान स्थान का उपयोग करें' : '📍 Use Current Location')}</div>
                         <div style={{ fontSize: '0.8rem', fontWeight: 500, opacity: 0.85 }}>{gpsDetected}</div>
                       </div>
                     </button>
@@ -1289,6 +1401,23 @@ const handleExecuteMove = () => {
                         );
                       })}
                     </div>
+
+                    <div className="form-group" style={{ marginTop: '1.25rem' }}>
+                      <label className="form-label" htmlFor="harvest-quantity-input">
+                        {primaryLang === 'hi' ? 'शहद की मात्रा (kg)' : 'Honey Quantity (kg)'}
+                      </label>
+                      <input
+                        id="harvest-quantity-input"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        className="form-input"
+                        value={harvestQuantity}
+                        onChange={(e) => setHarvestQuantity(e.target.value)}
+                        style={{ height: '56px', fontSize: '1.05rem' }}
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="wizard-actions">
@@ -1320,54 +1449,63 @@ const handleExecuteMove = () => {
 
     <h3>Lab Verification</h3>
 
-    {/* Lab Name */}
-    <div className="form-group">
-        <label>Lab Name</label>
+    <div className="lab-verification-grid">
+      {/* Lab Name */}
+      <div className="form-group lab-verification-field">
+          <label>Lab Name</label>
 
-        <input
-            type="text"
-            value={labName}
-            onChange={(e) => setLabName(e.target.value)}
-            placeholder="Enter laboratory name"
-        />
+          <input
+              type="text"
+              value={labName}
+              onChange={(e) => {
+                setLabName(e.target.value);
+                setLabVerificationError('');
+              }}
+              placeholder="Enter laboratory name"
+          />
+      </div>
+
+      {/* ULR Number */}
+      <div className="form-group lab-verification-field">
+          <label>ULR ID</label>
+
+          <div className="ulr-input-row">
+              <input
+                  type="text"
+                  value={ulrNumber}
+                  onChange={(e) => {
+                      setUlrNumber(e.target.value);
+                      setUlrStatus(null);
+                      setLabVerificationError('');
+                  }}
+                  placeholder="Enter ULR ID"
+              />
+              <button
+                  type="button"
+                  className="btn btn-secondary ulr-verify-btn"
+                  onClick={handleVerifyULR}
+              >
+                  Verify
+              </button>
+          </div>
+      </div>
     </div>
 
-    {/* ULR Number */}
-    <div className="form-group">
-        <label>ULR ID</label>
+    {ulrStatus === "checking" && (
+      <p className="ulr-status-message checking">Checking ULR ID...</p>
+    )}
 
-        <div className="ulr-input-container">
+    {ulrStatus === "verified" && (
+      <p className="ulr-status-message success">✓ ULR ID verified</p>
+    )}
 
-            <input
-                type="text"
-                value={ulrNumber}
-                onChange={(e) => {
-                    setUlrNumber(e.target.value);
-                    setUlrStatus(null);
-                }}
-                placeholder="Enter ULR ID"
-            />
-            {ulrStatus === "checking" && (
-    <p>Checking ULR ID...</p>
-)}
+    {ulrStatus === "invalid" && (
+      <p className="ulr-status-message error">✕ ULR ID not found</p>
+    )}
 
-{ulrStatus === "verified" && (
-    <p>✓ ULR ID verified</p>
-)}
-
-{ulrStatus === "invalid" && (
-    <p>✕ ULR ID not found</p>
-)}
-
-            <button
-                type="button"
-              onClick={handleVerifyULR}
-            >
-                Verify
-            </button>
-
-        </div>
-    </div>
+    {labVerificationError && (
+      <p className="ulr-status-message validation">⚠ {labVerificationError}</p>
+    )}
 
 </div>
 
@@ -1415,7 +1553,25 @@ const handleExecuteMove = () => {
                     <button className="btn btn-secondary" onClick={() => setWizardStep(4)}>
                       <ArrowLeft size={18} /> {primaryLang === 'hi' ? 'पीछे' : 'Back'}
                     </button>
-                    <button className="btn btn-green btn-wizard-next" onClick={startVerificationProcess}>
+                    <button className="btn btn-green btn-wizard-next" onClick={() => {
+                      if (!labName.trim()) {
+                        setLabVerificationError('Lab Name is required before continuing.');
+                        return;
+                      }
+
+                      if (!ulrNumber.trim()) {
+                        setLabVerificationError('ULR ID must be entered before continuing.');
+                        return;
+                      }
+
+                      if (ulrStatus !== 'verified') {
+                        setLabVerificationError('ULR ID must be verified before continuing.');
+                        return;
+                      }
+
+                      setLabVerificationError('');
+                      startVerificationProcess();
+                    }}>
                       <span>{primaryLang === 'hi' ? 'सत्यापित करें व QR कोड बनाएं' : 'Verify & Generate QR'}</span>
                       <Sparkles size={20} />
                     </button>
@@ -2098,6 +2254,16 @@ const handleExecuteMove = () => {
               <label className="form-label" htmlFor="move-new-gps">
                 {primaryLang === 'hi' ? 'नया GPS निर्देशांक (latitude, longitude):' : 'New GPS Coordinates:'}
               </label>
+
+              <button
+                type="button"
+                className="btn btn-outline-green"
+                onClick={handleUseCurrentLocationForMove}
+                style={{ width: '100%', marginBottom: '0.75rem', minHeight: '44px' }}
+              >
+                {primaryLang === 'hi' ? '📍 वर्तमान स्थान का उपयोग करें' : '📍 Use Current Location'}
+              </button>
+
               <input 
                 id="move-new-gps"
                 type="text" 

@@ -2,8 +2,56 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import pg from "pg";
+import { ethers } from "ethers";
 
-dotenv.config();
+
+dotenv.config({ path: ".env" });
+const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+
+const contractAddress = process.env.BLOCKCHAIN_CONTRACT_ADDRESS;
+
+if (!contractAddress) {
+    throw new Error("BLOCKCHAIN_CONTRACT_ADDRESS is missing from .env");
+}
+
+const wallet = new ethers.Wallet(
+    process.env.BLOCKCHAIN_PRIVATE_KEY,
+    provider
+);
+
+console.log("Blockchain provider connected");
+console.log("HoneyChain contract:", contractAddress);
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const contractPath = path.join(
+    __dirname,
+    "..",
+    "blockchain",
+    "artifacts",
+    "contracts",
+    "HoneyChain.sol",
+    "HoneyChain.json"
+);
+
+const contractJson = JSON.parse(
+    fs.readFileSync(contractPath, "utf8")
+);
+
+
+const honeyChainContract = new ethers.Contract(
+    contractAddress,
+    contractJson.abi,
+    wallet,
+);
+// Log the resolved contract address for verification
+console.log("HoneyChain contract target:", honeyChainContract.target);
+
 
 const { Pool } = pg;
 
@@ -158,6 +206,361 @@ FROM verification.lab_report_registry
 // ==========================================
 
 // Create a new Apiary Location
+app.post("/api/blockchain/beekeeper", async (req, res) => {
+    try {
+        const { beekeeperId, status } = req.body;
+
+        if (!beekeeperId || !status) {
+            return res.status(400).json({
+                success: false,
+                message: "beekeeperId and status are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerBeekeeper(
+            beekeeperId,
+            status
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Beekeeper registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain beekeeper error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/apiary", async (req, res) => {
+    try {
+        const { locationId, beekeeperId } = req.body;
+
+        if (!locationId || !beekeeperId) {
+            return res.status(400).json({
+                success: false,
+                message: "locationId and beekeeperId are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerApiary(
+            locationId,
+            beekeeperId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Apiary registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain apiary error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/harvest", async (req, res) => {
+    try {
+        const {
+            harvestId,
+            beekeeperId,
+            locationId,
+            harvestDate,
+            flowerSources,
+            quantityKg,
+            labUlr,
+            ulrStatus
+        } = req.body;
+
+        const flowers = Array.isArray(flowerSources)
+            ? flowerSources.join(", ")
+            : String(flowerSources);
+
+        const tx = await honeyChainContract.registerHarvest(
+            harvestId,
+            beekeeperId,
+            locationId,
+            harvestDate,
+            flowers,
+            Number(quantityKg),
+            labUlr || "",
+            ulrStatus || "Verified"
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Harvest registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain harvest error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/batch", async (req, res) => {
+    try {
+        const {
+            batchId,
+            companyLicense,
+            productName,
+            quantityKg,
+            finalLabUlr,
+            ulrStatus
+        } = req.body;
+
+        if (!batchId || !companyLicense || !productName || quantityKg === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "Required batch fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.createBatch(
+          batchId,
+      companyLicense,
+      productName,
+      Number(quantityKg),
+      finalLabUlr || "",
+      ulrStatus || "Verified",
+      req.body.manualReportStatus || "",
+      req.body.isLabCertified || false,
+      req.body.manualReportCertified || false
+  );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Batch registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain batch error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+app.post("/api/blockchain/link-harvest", async (req, res) => {
+    try {
+        const { batchId, harvestId } = req.body;
+
+        if (!batchId || !harvestId) {
+            return res.status(400).json({
+                success: false,
+                message: "batchId and harvestId are required"
+            });
+        }
+
+        const tx = await honeyChainContract.addHarvestToBatch(
+            batchId,
+            harvestId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Harvest linked to batch on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain harvest linking error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+// ==========================================
+// BLOCKCHAIN: COMPANY
+// ==========================================
+
+app.post("/api/blockchain/company", async (req, res) => {
+    try {
+        const {
+            licenseNumber,
+            companyName,
+            licenseStatus,
+            issueDate,
+            expiryDate,
+            issuingAuthority
+        } = req.body;
+
+        if (
+            !licenseNumber ||
+            !companyName ||
+            !licenseStatus ||
+            issueDate === undefined ||
+            expiryDate === undefined ||
+            !issuingAuthority
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Required company fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.registerCompany(
+            licenseNumber,
+            companyName,
+            licenseStatus,
+            Number(issueDate),
+            Number(expiryDate),
+            issuingAuthority
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Company registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain company error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+
+
+// ==========================================
+// BLOCKCHAIN: LAB REPORT
+// ==========================================
+
+app.post("/api/blockchain/lab-report", async (req, res) => {
+    try {
+        const {
+            ulrNumber,
+            labId,
+            labName,
+            nablCertificateNumber,
+            accreditationStatus,
+            reportNumber,
+            reportDate,
+            sampleId
+        } = req.body;
+
+        if (
+            !ulrNumber ||
+            !labId ||
+            !labName ||
+            !nablCertificateNumber ||
+            !accreditationStatus ||
+            !reportNumber ||
+            !reportDate ||
+            !sampleId
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Required lab report fields are missing"
+            });
+        }
+
+        const tx = await honeyChainContract.registerLabReport(
+            ulrNumber,
+            labId,
+            labName,
+            nablCertificateNumber,
+            accreditationStatus,
+            reportNumber,
+            reportDate,
+            sampleId
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Lab report registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain lab report error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
+
+
+// ==========================================
+// BLOCKCHAIN: HEALTH LOG
+// ==========================================
+
+app.post("/api/blockchain/health-log", async (req, res) => {
+    try {
+        const {
+            logId,
+            locationId,
+            status,
+            inspectionDate
+        } = req.body;
+
+        if (!req.body.logId || !locationId || !status || !inspectionDate)   {
+            return res.status(400).json({
+                success: false,
+                message: "logId, locationId, status and inspectionDate are required"
+            });
+        }
+
+        const tx = await honeyChainContract.registerHealthLog(
+            req.body.logId,
+            locationId,
+            status,
+            inspectionDate
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Health log registered on blockchain",
+            transactionHash: receipt.hash
+        });
+
+    } catch (error) {
+        console.error("Blockchain health log error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: error.shortMessage || error.message
+        });
+    }
+});
 app.post('/api/locations', async (req, res) => {
   try {
     const { location_id, beekeeper_id, name, gps_coordinates, hive_count } = req.body;
@@ -267,17 +670,40 @@ app.post('/api/harvests', async (req, res) => {
       harvest_date,
       flower_sources,
       location_id,
-      lab_ulr,          // Changed here
+      gps_coordinates,
+      lab_ulr,
       ulr_status,
-      block_hash,
-      tx_ref,
       quantity_kg
     } = req.body;
+
+    if (!harvest_id || !beekeeper_id || !harvest_date || !flower_sources || !location_id || quantity_kg === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required harvest fields'
+      });
+    }
+
+    const flowers = Array.isArray(flower_sources)
+      ? flower_sources.join(', ')
+      : String(flower_sources || '');
+
+    const tx = await honeyChainContract.registerHarvest(
+      harvest_id,
+      beekeeper_id,
+      location_id,
+      harvest_date,
+      flowers,
+      Number(quantity_kg),
+      lab_ulr || '',
+      ulr_status || 'Verified'
+    );
+
+    const receipt = await tx.wait();
 
     const query = `
       INSERT INTO harvests (
         harvest_id, beekeeper_id, harvest_date, flower_sources, location_id,
-        lab_ulr, ulr_status, block_hash, tx_ref, quantity_kg   -- Changed inside the SQL string here!
+        lab_ulr, ulr_status, block_hash, tx_ref, quantity_kg
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
@@ -287,20 +713,32 @@ app.post('/api/harvests', async (req, res) => {
       harvest_id,
       beekeeper_id,
       harvest_date,
-      JSON.stringify(flower_sources), // Safely converts the array for SQL
+      JSON.stringify(flower_sources),
       location_id,
-      lab_ulr || null,  // Changed in the values array here
+      lab_ulr || null,
       ulr_status || 'Verified',
-      block_hash,
-      tx_ref,
-      quantity_kg || 160
+      receipt.hash,
+      receipt.hash,
+      Number(quantity_kg) || 160
     ];
 
+    if (gps_coordinates) {
+      console.log('Harvest GPS payload received:', gps_coordinates);
+    }
+
     const result = await pool.query(query, values);
-    res.status(201).json({ success: true, data: result.rows[0] });
+
+    return res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      transactionHash: receipt.hash
+    });
   } catch (err) {
     console.error('Database Error saving harvest:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({
+      success: false,
+      error: err.shortMessage || err.message || 'Failed to create harvest'
+    });
   }
 });
 // Get all harvests for a beekeeper
@@ -547,9 +985,14 @@ app.get('/api/batches/verify/:batchId', async (req, res) => {
   }
 });
 
+
 app.get('/api/trace/:traceId', async (req, res) => {
   try {
     const { traceId } = req.params;
+
+    // ==========================================
+    // 1. CHECK IF TRACE ID IS A BATCH
+    // ==========================================
 
     const batchQuery = `
       SELECT
@@ -562,12 +1005,7 @@ app.get('/api/trace/:traceId', async (req, res) => {
         b.final_lab_ulr,
         b.ulr_status,
         b.is_lab_certified,
-        b.manual_report_certified,
-        b.company_license,
-        b.product_name,
-        b.quantity_kg,
-        b.created_at,
-        COALESCE(lr.company_name, 'Verified Producer') AS company_name
+        b.manual_report_certified
       FROM batches b
       LEFT JOIN verification.license_registry lr
         ON lr.license_number = b.company_license
@@ -577,7 +1015,12 @@ app.get('/api/trace/:traceId', async (req, res) => {
     const batchRes = await pool.query(batchQuery, [traceId]);
 
     if (batchRes.rows.length > 0) {
+
       const batch = batchRes.rows[0];
+
+      // ==========================================
+      // 2. GET ALL HARVESTS LINKED TO THIS BATCH
+      // ==========================================
 
       const harvestQuery = `
         SELECT
@@ -585,7 +1028,6 @@ app.get('/api/trace/:traceId', async (req, res) => {
           h.beekeeper_id,
           br.registered_name AS beekeeper_name,
           br.state,
-          br.district,
           al.name AS location_name,
           h.harvest_date,
           h.flower_sources,
@@ -596,7 +1038,8 @@ app.get('/api/trace/:traceId', async (req, res) => {
           h.block_hash,
           h.tx_ref
         FROM batch_harvest_mapping bhm
-        JOIN harvests h ON h.harvest_id = bhm.harvest_id
+        JOIN harvests h
+          ON h.harvest_id = bhm.harvest_id
         LEFT JOIN verification.beekeeper_registry br
           ON br.beekeeper_id = h.beekeeper_id
         LEFT JOIN apiary_locations al
@@ -605,53 +1048,115 @@ app.get('/api/trace/:traceId', async (req, res) => {
         ORDER BY h.harvest_date DESC, h.harvest_id ASC
       `;
 
-      const harvestRes = await pool.query(harvestQuery, [traceId]);
+      const harvestRes = await pool.query(
+        harvestQuery,
+        [traceId]
+      );
 
-      const labQuery = `
-        SELECT
-          ulr_number,
-          lab_name,
-          laboratory_name,
-          lab_address,
-          report_url,
-          report_path,
-          status,
-          verification_status,
-          created_at
-        FROM verification.lab_report_registry
-        WHERE ulr_number = $1
-        LIMIT 1
-      `;
+      const harvests = harvestRes.rows;
 
-      let lab = null;
-      let labReport = null;
+      // ==========================================
+      // 3. GET LAB REPORT FOR EACH HARVEST
+      // ==========================================
+
+      const harvestLabReports = [];
+
+      for (const harvest of harvests) {
+
+        if (!harvest.lab_ulr) {
+          harvestLabReports.push({
+            harvest_id: harvest.harvest_id,
+            lab: null
+          });
+
+          continue;
+        }
+
+        const labResult = await pool.query(
+          `
+          SELECT
+            ulr_number,
+            lab_id,
+            lab_name,
+            nabl_certificate_number,
+            accreditation_status,
+            state,
+            city,
+            report_number,
+            report_date,
+            sample_id
+          FROM verification.lab_report_registry
+          WHERE ulr_number = $1
+          LIMIT 1
+          `,
+          [harvest.lab_ulr]
+        );
+
+        harvestLabReports.push({
+          harvest_id: harvest.harvest_id,
+          lab: labResult.rows[0] || null
+        });
+      }
+
+      // ==========================================
+      // 4. GET FINAL COMPANY LAB REPORT
+      // ==========================================
+
+      let companyLab = null;
 
       if (batch.final_lab_ulr) {
-        const labRes = await pool.query(labQuery, [batch.final_lab_ulr]);
-        if (labRes.rows.length > 0) {
-          lab = labRes.rows[0];
-          labReport = {
-            report_url: lab.report_url || lab.report_path || null,
-            report_path: lab.report_path || null,
-            report_field: 'verification.lab_report_registry.report_url / report_path'
-          };
+
+        const companyLabResult = await pool.query(
+          `
+          SELECT
+            ulr_number,
+            lab_id,
+            lab_name,
+            nabl_certificate_number,
+            accreditation_status,
+            state,
+            city,
+            report_number,
+            report_date,
+            sample_id
+          FROM verification.lab_report_registry
+          WHERE ulr_number = $1
+          LIMIT 1
+          `,
+          [batch.final_lab_ulr]
+        );
+
+        if (companyLabResult.rows.length > 0) {
+          companyLab = companyLabResult.rows[0];
         }
       }
+
+      // ==========================================
+      // 5. RETURN COMPLETE BATCH TRACEABILITY
+      // ==========================================
 
       return res.json({
         verified: true,
         recordType: 'batch',
-        batch,
+
+        batch: batch,
+
         company: {
           company_name: batch.company_name || null,
           company_license: batch.company_license || null
         },
-        harvests: harvestRes.rows,
-        lab,
-        labReport,
-        report_storage_hint: 'If a lab report is not stored in the database, use the existing verification.lab_report_registry.report_url/report_path field.'
+
+        lab: companyLab,
+
+        harvests: harvests,
+
+        harvestLabReports: harvestLabReports
       });
     }
+
+    // ==========================================
+    // 6. IF NOT A BATCH, CHECK IF IT IS A HARVEST
+    // ==========================================
 
     const harvestQuery = `
       SELECT
@@ -659,7 +1164,6 @@ app.get('/api/trace/:traceId', async (req, res) => {
         h.beekeeper_id,
         br.registered_name AS beekeeper_name,
         br.state,
-        br.district,
         al.name AS location_name,
         h.harvest_date,
         h.flower_sources,
@@ -668,7 +1172,10 @@ app.get('/api/trace/:traceId', async (req, res) => {
         h.ulr_status,
         h.block_hash,
         h.tx_ref,
-        COALESCE(h.ulr_status, 'Unverified') AS verification_status,
+        COALESCE(
+          h.ulr_status,
+          'Unverified'
+        ) AS verification_status,
         al.location_id,
         al.gps_coordinates
       FROM harvests h
@@ -679,7 +1186,10 @@ app.get('/api/trace/:traceId', async (req, res) => {
       WHERE h.harvest_id = $1
     `;
 
-    const harvestRes = await pool.query(harvestQuery, [traceId]);
+    const harvestRes = await pool.query(
+      harvestQuery,
+      [traceId]
+    );
 
     if (harvestRes.rows.length === 0) {
       return res.status(404).json({
@@ -690,23 +1200,74 @@ app.get('/api/trace/:traceId', async (req, res) => {
 
     const harvest = harvestRes.rows[0];
 
+    // ==========================================
+    // 7. GET HARVEST LAB REPORT
+    // ==========================================
+
+    let harvestLab = null;
+
+    if (harvest.lab_ulr) {
+
+      const labResult = await pool.query(
+        `
+        SELECT
+          ulr_number,
+          lab_id,
+          lab_name,
+          nabl_certificate_number,
+          accreditation_status,
+          state,
+          city,
+          report_number,
+          report_date,
+          sample_id
+        FROM verification.lab_report_registry
+        WHERE ulr_number = $1
+        LIMIT 1
+        `,
+        [harvest.lab_ulr]
+      );
+
+      if (labResult.rows.length > 0) {
+        harvestLab = labResult.rows[0];
+      }
+    }
+
+    // ==========================================
+    // 8. RETURN HARVEST TRACEABILITY
+    // ==========================================
+
     return res.json({
       verified: true,
       recordType: 'harvest',
-      harvest,
+
+      harvest: harvest,
+
       company: {
         company_name: null,
         company_license: null
       },
+
       harvests: [harvest],
-      lab: null,
-      labReport: null
+
+      lab: harvestLab,
+
+      harvestLabReports: [
+        {
+          harvest_id: harvest.harvest_id,
+          lab: harvestLab
+        }
+      ]
     });
+
   } catch (error) {
+
     console.error('Traceability fetch error:', error);
+
     return res.status(500).json({
       verified: false,
-      message: 'Failed to fetch traceability data'
+      message: 'Failed to fetch traceability data',
+      error: error.message
     });
   }
 });
