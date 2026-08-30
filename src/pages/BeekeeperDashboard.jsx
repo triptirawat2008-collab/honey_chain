@@ -7,6 +7,7 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, Printer, WifiOff, Wifi,
   ChevronRight, RefreshCw
 } from 'lucide-react';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 import { generateMockHash } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
 
@@ -75,7 +76,7 @@ const [ulrStatus, setUlrStatus] = useState(null);
 const handleVerifyULR = async () => {
     try {
         const response = await fetch(
-            "http://localhost:5000/api/verify-ulr",
+            "/api/verify-ulr",
             {
                 method: "POST",
                 headers: {
@@ -114,7 +115,7 @@ const handleAddNewLocationBackend = async () => {
       const newLocId = `LOC-${user.beekeeperId}-${Date.now().toString().slice(-4)}`;
 
       try {
-        const response = await fetch('http://localhost:5000/api/locations', {
+        const response = await fetch('/api/locations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -201,7 +202,6 @@ const startVerificationProcess = async () => {
           
           // Generate Harvest ID
           const targetApiary = apiaries.find(a => a.locationId === selectedApiaryId);
-          const myCount = harvests.length + 1;
           const dateStr = harvestDate.replace(/-/g, '');
           const newHarvestId = `HB-${user.beekeeperId}-${dateStr}-${Date.now().toString().slice(-4)}`;          
           const rawString = `${newHarvestId}|${user.beekeeperId}|${harvestDate}|${selectedFlowers.join(',')}`;
@@ -214,70 +214,59 @@ const startVerificationProcess = async () => {
             harvest_date: harvestDate,
             flower_sources: selectedFlowers,
             location_id: selectedApiaryId,
-            lab_ulr: ulrNumber ,
+            lab_ulr: ulrNumber || null,
             ulr_status: ulrStatus || "Verified",
             block_hash: hashVal,
             tx_ref: txRefVal,
             quantity_kg: 160
           };
-try {
-            // Save to PostgreSQL runtime database
-            const response = await fetch('http://localhost:5000/api/harvests', {
+
+          try {
+            const response = await fetch('/api/harvests', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(newHarvestPayload)
             });
             const dbResult = await response.json();
 
-            if (!dbResult.success) {
-              console.error("Failed to persist harvest to DB:", dbResult.error);
-              alert("Database Error: Could not save harvest. " + (dbResult.error || ""));
-              return; // ❌ STOP HERE IF DB FAILS. Do not show success screen.
+            if (!response.ok || !dbResult.success) {
+              throw new Error(dbResult.error || dbResult.message || 'Failed to create harvest');
             }
+
+            const savedHarvest = databaseHarvestToUIHarvest(dbResult.data || {
+              harvest_id: newHarvestId,
+              beekeeper_id: user.beekeeperId,
+              harvest_date: harvestDate,
+              flower_sources: selectedFlowers,
+              location_id: selectedApiaryId,
+              lab_ulr: ulrNumber || null,
+              ulr_status: ulrStatus || 'Verified',
+              block_hash: hashVal,
+              tx_ref: txRefVal,
+              quantity_kg: 160,
+              location_name: customLocationText || (targetApiary ? targetApiary.name : 'Rampur Apiary')
+            });
+
+            setTimeout(() => {
+              setVerificationStep(5);
+              setCreatedHarvestId(newHarvestId);
+
+              setHarvests(prev => [savedHarvest, ...prev]);
+
+              const newHistoryItem = {
+                id: `H-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                type: "Harvest Created",
+                details: `Created Harvest ${newHarvestId} (${savedHarvest.flowerSources.join('/')}) from ${savedHarvest.locationName}.`
+              };
+              setHistory(prev => [newHistoryItem, ...prev]);
+            }, 900);
           } catch (err) {
-            console.error("Network error saving harvest:", err);
-            alert("Network Error: Could not reach the server.");
-            return; // ❌ STOP HERE IF NETWORK FAILS.
+            console.error('Failed to persist harvest to PostgreSQL:', err);
+            alert(`Could not save harvest to database: ${err.message}`);
+            setVerificationStep(0);
+            return;
           }
-
-          // ✅ ONLY RUN THIS IF DATABASE SAVE WAS SUCCESSFUL
-          setTimeout(() => {
-            setVerificationStep(5);
-            setCreatedHarvestId(newHarvestId);
-
-            const newHarvest = {
-              harvestId: newHarvestId,
-              beekeeperId: user.beekeeperId,
-              beekeeperName: user.registeredName,
-              state: user.state || "Uttar Pradesh",
-              harvestDate: harvestDate,
-              flowerSources: selectedFlowers,
-              locationId: selectedApiaryId,
-              locationName: customLocationText || (targetApiary ? targetApiary.name : 'Rampur Apiary'),
-              gps: gpsDetected,
-              labName: labName,
-              labStatus: "Verified",
-              blockchainStatus: "Verified",
-              moisture: "17.4%",
-              hash: hashVal,
-              txRef: txRefVal,
-              quantityKg: 160,
-              // 👇 ADD THIS LINE SO IT SHOWS UP IMMEDIATELY WITHOUT REFRESHING!
-              ulrNumber: ulrNumber 
-            };
-
-            setHarvests([newHarvest, ...harvests]);
-
-            // Add to history
-            const newHistoryItem = {
-              id: `H-${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              type: "Harvest Created",
-              details: `Created Harvest ${newHarvestId} (${newHarvest.flowerSources.join('/')}) from ${newHarvest.locationName}.`
-            };
-            setHistory([newHistoryItem, ...history]);
-
-          }, 900);
         }, 900);
       }, 900);
     }, 900);
@@ -308,11 +297,60 @@ const resetHarvestForm = () => {
     setNewLocationName('');
     setShowMoveModal(true);
   };
+
+  const normalizeFlowerSources = (value) => {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean);
+    }
+
+    if (!value) {
+      return [];
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(Boolean);
+        }
+      } catch (error) {
+        // Fall back to comma-split if JSON parse fails.
+      }
+
+      return value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    return [String(value)];
+  };
+
+  const databaseHarvestToUIHarvest = (row = {}) => ({
+    harvestId: row.harvest_id || row.harvestId || '',
+    beekeeperId: row.beekeeper_id || row.beekeeperId || '',
+    beekeeperName: row.beekeeper_name || row.beekeeperName || user?.registeredName || '',
+    state: row.state || 'Uttar Pradesh',
+    harvestDate: row.harvest_date || row.harvestDate || '',
+    flowerSources: normalizeFlowerSources(row.flower_sources ?? row.flowerSources ?? []),
+    locationId: row.location_id || row.locationId || '',
+    locationName: row.location_name || row.locationName || 'Apiary',
+    gps: row.gps || row.gps_coordinates || '',
+    labName: row.lab_name || row.labName || 'Demo Honey Testing Laboratory (NABL #104)',
+    labStatus: row.lab_status || row.labStatus || 'Verified',
+    blockchainStatus: row.blockchain_status || row.blockchainStatus || 'Verified',
+    moisture: row.moisture || '17.4%',
+    hash: row.block_hash || row.hash || '',
+    txRef: row.tx_ref || row.txRef || '',
+    quantityKg: Number(row.quantity_kg ?? row.quantityKg ?? 160),
+    ulrNumber: row.lab_ulr || row.labUlr || '',
+  });
+
 useEffect(() => {
   const fetchApiaries = async () => {
     try {
       const response = await fetch(
-        `http://localhost:5000/api/locations/${user.beekeeperId}`
+        `/api/locations/${user.beekeeperId}`
       );
 
       if (!response.ok) {
@@ -378,44 +416,61 @@ useEffect(() => {
     );
   }
 }, [apiaries]);
-  // Load harvests from PostgreSQL on login or when beekeeperId changes
-  useEffect(() => {
-    if (!user?.beekeeperId) return;
 
-    const loadHarvests = async () => {
+  useEffect(() => {
+    const fetchHealthLogs = async () => {
+      if (!user?.beekeeperId) {
+        setHealthLogs([]);
+        return;
+      }
+
       try {
-        const response = await fetch(`http://localhost:5000/api/harvests/${user.beekeeperId}`);
+        const response = await fetch(`/api/health-logs/${encodeURIComponent(user.beekeeperId)}`);
         const result = await response.json();
 
-        if (result.success && result.data) {
-          const formattedHarvests = result.data.map(h => ({
-            harvestId: h.harvest_id,
-            beekeeperId: h.beekeeper_id,
-            beekeeperName: user.registeredName,
-            state: user.state || "Uttar Pradesh",
-            harvestDate: h.harvest_date ? h.harvest_date.split('T')[0] : '',
-            flowerSources: typeof h.flower_sources === 'string' ? JSON.parse(h.flower_sources) : (h.flower_sources || ['Mustard']),
-            locationId: h.location_id,
-            locationName: h.location_name || 'Rampur Apiary',
-            labName: "Demo Honey Testing Laboratory (NABL #104)",
-            labStatus: h.ulr_status || "Verified",
-            blockchainStatus: "Verified",
-            moisture: "17.4%",
-            hash: h.block_hash,
-            txRef: h.tx_ref,
-            quantityKg: h.quantity_kg || 160,
-            ulrNumber: h.lab_ulr
-          }));
-          setHarvests(formattedHarvests);
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || result.message || 'Failed to load health logs');
         }
+
+        const mappedLogs = (Array.isArray(result.data) ? result.data : []).map(log => mapHealthLogFromDatabase(log, apiaries));
+        setHealthLogs(mappedLogs);
       } catch (error) {
-        console.error("Failed to load harvests from database:", error);
+        console.error('Failed to load health logs from PostgreSQL:', error);
+        setHealthLogs([]);
       }
     };
 
-    loadHarvests();
+    fetchHealthLogs();
+  }, [user?.beekeeperId, apiaries, setHealthLogs]);
+
+  // Load harvests from PostgreSQL whenever the authenticated beekeeper dashboard opens.
+  useEffect(() => {
+    const fetchHarvests = async () => {
+      if (!user?.beekeeperId) {
+        setHarvests([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/harvests/${encodeURIComponent(user.beekeeperId)}`);
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || result.message || 'Failed to load harvests');
+        }
+
+        const rows = Array.isArray(result.data) ? result.data : [];
+        const mappedHarvests = rows.map(databaseHarvestToUIHarvest);
+        setHarvests(mappedHarvests);
+      } catch (error) {
+        console.error('Failed to load harvests from PostgreSQL:', error);
+        setHarvests([]);
+      }
+    };
+
+    fetchHarvests();
   }, [user?.beekeeperId, setHarvests]);
-  
+
 const handleExecuteMove = () => {
     if (!newGps) {
       alert("Please provide GPS coordinates.");
@@ -492,14 +547,35 @@ const handleExecuteMove = () => {
 
   // Add Health Log Logic
 // Add Health Log Logic (Connected to Database)
+  const mapHealthLogFromDatabase = (log, apiaryList = []) => {
+    const targetApiary = apiaryList.find(a => a.locationId === (log.location_id || log.locationId));
+    const inspectionDate = log.inspection_date || log.inspectionDate || new Date().toISOString().split('T')[0];
+
+    return {
+      id: log.id,
+      locationId: log.location_id || log.locationId,
+      apiaryName: targetApiary?.name || log.location_name || log.apiaryName || 'Apiary',
+      date: inspectionDate.split('T')[0],
+      status: log.status || 'Healthy',
+      statusHi: log.status === 'Healthy'
+        ? 'स्वस्थ (सब ठीक है)'
+        : log.status === 'Needs Attention'
+          ? 'ध्यान दें (कीट/ततैया)'
+          : 'खतरा (तुरंत ध्यान दें)',
+      affectedColonies: Number(log.affected_colonies ?? log.affectedColonies ?? 0),
+      notes: log.notes || 'नियमित निरीक्षण पूर्ण। सब ठीक है।',
+      inspectionDate,
+      createdAt: log.created_at || log.createdAt || null
+    };
+  };
+
   const handleAddHealthLog = async (e) => {
     e.preventDefault();
     const targetApiary = apiaries.find(a => a.locationId === logApiaryId);
     if (!targetApiary) return;
 
     try {
-      // 1. Send data to PostgreSQL Backend
-      const response = await fetch('http://localhost:5000/api/health-logs', {
+      const response = await fetch('/api/health-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -512,53 +588,40 @@ const handleExecuteMove = () => {
 
       const result = await response.json();
 
-      if (result.success) {
-        // 2. Update the UI only if database save was successful
-        const newLog = {
-          id: `HL-${Date.now()}`,
-          locationId: logApiaryId,
-          apiaryName: targetApiary.name,
-          date: new Date().toISOString().split('T')[0],
-          status: logStatus,
-          statusHi: logStatus === 'Healthy' ? 'स्वस्थ (सब ठीक है)' : logStatus === 'Needs Attention' ? 'ध्यान दें (कीट/ततैया)' : 'खतरा (तुरंत ध्यान दें)',
-          affectedColonies: parseInt(logColonies) || 0,
-          notes: logNotes || "नियमित निरीक्षण पूर्ण। सब ठीक है।"
-        };
-
-        setHealthLogs([newLog, ...healthLogs]);
-
-        // Update target apiary's status on screen
-        const updatedApiaries = apiaries.map(a => {
-          if (a.locationId === logApiaryId) {
-            return {
-              ...a,
-              status: logStatus,
-              lastInspection: new Date().toISOString().split('T')[0]
-            };
-          }
-          return a;
-        });
-        setApiaries(updatedApiaries);
-
-        // Add to history
-        const newHistoryItem = {
-          id: `H-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          type: "Health Log Added",
-          details: `Logged health for ${targetApiary.name}: ${logStatus} (${logColonies} affected boxes).`
-        };
-        setHistory([newHistoryItem, ...history]);
-
-        setLogColonies(0);
-        setLogNotes('');
-        setVoiceRecorded(false);
-        alert(primaryLang === 'hi' ? "स्वास्थ्य रिकॉर्ड सफलतापूर्वक सुरक्षित हुआ!" : "Health log saved to database successfully!");
-      } else {
-        alert("Database Error: " + result.error);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || 'Failed to create health log');
       }
+
+      const savedLog = mapHealthLogFromDatabase(result.data, apiaries);
+      setHealthLogs(prev => [savedLog, ...prev]);
+
+      const updatedApiaries = apiaries.map(a => {
+        if (a.locationId === logApiaryId) {
+          return {
+            ...a,
+            status: logStatus,
+            lastInspection: new Date().toISOString().split('T')[0]
+          };
+        }
+        return a;
+      });
+      setApiaries(updatedApiaries);
+
+      const newHistoryItem = {
+        id: `H-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "Health Log Added",
+        details: `Logged health for ${targetApiary.name}: ${logStatus} (${logColonies} affected boxes).`
+      };
+      setHistory(prev => [newHistoryItem, ...prev]);
+
+      setLogColonies(0);
+      setLogNotes('');
+      setVoiceRecorded(false);
+      alert(primaryLang === 'hi' ? "स्वास्थ्य रिकॉर्ड सफलतापूर्वक सुरक्षित हुआ!" : "Health log saved to database successfully!");
     } catch (error) {
-      console.error("Fetch failed:", error);
-      alert("Could not connect to the database server.");
+      console.error("Failed to save health log to PostgreSQL:", error);
+      alert(`Could not save health log: ${error.message}`);
     }
   };
   // Add Reminder Logic
@@ -858,7 +921,6 @@ const handleExecuteMove = () => {
                         <th>{primaryLang === 'hi' ? 'स्थान' : 'Location'}</th>
                         <th>{primaryLang === 'hi' ? 'लैब जाँच' : 'Lab Status'}</th>
                         <th>{primaryLang === 'hi' ? 'ब्लॉकचेन' : 'Blockchain'}</th>
-                        <th>{primaryLang === 'hi' ? 'कार्य' : 'Action'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -887,20 +949,6 @@ const handleExecuteMove = () => {
                             <span className="blockchain-status-tag">
                               <ShieldCheck size={14} /> {h.blockchainStatus}
                             </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '0.4rem' }}>
-                              <button 
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setActiveTraceId(h.harvestId);
-                                  setView('consumer-trace');
-                                }}
-                                title="View Public QR Traceability"
-                              >
-                                <QrCode size={14} /> {primaryLang === 'hi' ? 'QR जाँच' : 'Trace'}
-                              </button>
-                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1430,8 +1478,20 @@ const handleExecuteMove = () => {
                           🍯 HoneyChain Container Label • भारतीय शहद प्रमाण
                         </div>
                         
-                        <div className="qr-large-graphic">
-                          <QrCode size={180} color="#1F2937" />
+                        <div className="qr-large-graphic" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+                          {createdHarvestId && (() => {
+                            const traceUrl = `${window.location.origin}/trace/${encodeURIComponent(createdHarvestId)}`;
+                            return (
+                              <QRCode
+                                value={traceUrl}
+                                size={180}
+                                bgColor="#ffffff"
+                                fgColor="#111827"
+                                level="H"
+                                includeMargin
+                              />
+                            );
+                          })()}
                         </div>
 
                         <div className="qr-details-block">

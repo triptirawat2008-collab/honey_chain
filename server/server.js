@@ -223,6 +223,33 @@ app.post('/api/health-logs', async (req, res) => {
   }
 });
 
+app.get('/api/health-logs/:beekeeper_id', async (req, res) => {
+  try {
+    const { beekeeper_id } = req.params;
+
+    const result = await pool.query(
+      `SELECT hl.*, al.beekeeper_id, al.name AS location_name
+       FROM health_logs hl
+       JOIN apiary_locations al ON hl.location_id = al.location_id
+       WHERE al.beekeeper_id = $1
+       ORDER BY hl.inspection_date DESC, hl.created_at DESC`,
+      [beekeeper_id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('Error fetching health logs:', err.message);
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch health logs'
+    });
+  }
+});
+
 // ==========================================
 // 2. TRACEABILITY ROUTES (Solo Beekeeper)
 // ==========================================
@@ -476,37 +503,232 @@ app.get('/api/batches/:company_license', async (req, res) => {
 // 4. PUBLIC CONSUMER QR TRACEABILITY ROUTE
 // ==========================================
 
-// Fetch complete public traceability tree by Batch ID
-app.get('/api/traceability/:batch_id', async (req, res) => {
+app.get('/api/batches/verify/:batchId', async (req, res) => {
   try {
-    const { batch_id } = req.params;
+    const { batchId } = req.params;
 
-    // Fetch batch details
-    const batchQuery = `SELECT * FROM batches WHERE batch_id = $1;`;
-    const batchRes = await pool.query(batchQuery, [batch_id]);
+    const query = `
+      SELECT
+        b.batch_id,
+        b.company_license,
+        lr.company_name,
+        b.product_name,
+        b.quantity_kg,
+        b.created_at,
+        b.final_lab_ulr,
+        b.ulr_status,
+        b.is_lab_certified,
+        b.manual_report_certified
+      FROM batches b
+      LEFT JOIN verification.license_registry lr
+        ON lr.license_number = b.company_license
+      WHERE b.batch_id = $1
+    `;
 
-    if (batchRes.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Batch ID not found' });
+    const result = await pool.query(query, [batchId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        verified: false,
+        message: 'Batch ID not found'
+      });
     }
 
-    // Fetch associated harvests and beekeeper references
-    const harvestsQuery = `
-      SELECT h.* 
-      FROM harvests h
-      JOIN batch_harvest_mapping bhm ON h.harvest_id = bhm.harvest_id
-      WHERE bhm.batch_id = $1;
-    `;
-    const harvestsRes = await pool.query(harvestsQuery, [batch_id]);
-
-    res.status(200).json({
-      success: true,
-      batch: batchRes.rows[0],
-      harvests: harvestsRes.rows
+    return res.json({
+      verified: true,
+      batch: result.rows[0]
     });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch traceability data' });
+  } catch (error) {
+    console.error('Batch verification error:', error);
+    return res.status(500).json({
+      verified: false,
+      message: 'Could not connect to the verification service.'
+    });
   }
+});
+
+app.get('/api/trace/:traceId', async (req, res) => {
+  try {
+    const { traceId } = req.params;
+
+    const batchQuery = `
+      SELECT
+        b.batch_id,
+        b.company_license,
+        lr.company_name,
+        b.product_name,
+        b.quantity_kg,
+        b.created_at,
+        b.final_lab_ulr,
+        b.ulr_status,
+        b.is_lab_certified,
+        b.manual_report_certified,
+        b.company_license,
+        b.product_name,
+        b.quantity_kg,
+        b.created_at,
+        COALESCE(lr.company_name, 'Verified Producer') AS company_name
+      FROM batches b
+      LEFT JOIN verification.license_registry lr
+        ON lr.license_number = b.company_license
+      WHERE b.batch_id = $1
+    `;
+
+    const batchRes = await pool.query(batchQuery, [traceId]);
+
+    if (batchRes.rows.length > 0) {
+      const batch = batchRes.rows[0];
+
+      const harvestQuery = `
+        SELECT
+          h.harvest_id,
+          h.beekeeper_id,
+          br.registered_name AS beekeeper_name,
+          br.state,
+          br.district,
+          al.name AS location_name,
+          h.harvest_date,
+          h.flower_sources,
+          h.quantity_kg AS harvest_quantity_kg,
+          h.lab_ulr,
+          h.ulr_status AS harvest_ulr_status,
+          COALESCE(h.ulr_status, 'Unverified') AS verification_status,
+          h.block_hash,
+          h.tx_ref
+        FROM batch_harvest_mapping bhm
+        JOIN harvests h ON h.harvest_id = bhm.harvest_id
+        LEFT JOIN verification.beekeeper_registry br
+          ON br.beekeeper_id = h.beekeeper_id
+        LEFT JOIN apiary_locations al
+          ON al.location_id = h.location_id
+        WHERE bhm.batch_id = $1
+        ORDER BY h.harvest_date DESC, h.harvest_id ASC
+      `;
+
+      const harvestRes = await pool.query(harvestQuery, [traceId]);
+
+      const labQuery = `
+        SELECT
+          ulr_number,
+          lab_name,
+          laboratory_name,
+          lab_address,
+          report_url,
+          report_path,
+          status,
+          verification_status,
+          created_at
+        FROM verification.lab_report_registry
+        WHERE ulr_number = $1
+        LIMIT 1
+      `;
+
+      let lab = null;
+      let labReport = null;
+
+      if (batch.final_lab_ulr) {
+        const labRes = await pool.query(labQuery, [batch.final_lab_ulr]);
+        if (labRes.rows.length > 0) {
+          lab = labRes.rows[0];
+          labReport = {
+            report_url: lab.report_url || lab.report_path || null,
+            report_path: lab.report_path || null,
+            report_field: 'verification.lab_report_registry.report_url / report_path'
+          };
+        }
+      }
+
+      return res.json({
+        verified: true,
+        recordType: 'batch',
+        batch,
+        company: {
+          company_name: batch.company_name || null,
+          company_license: batch.company_license || null
+        },
+        harvests: harvestRes.rows,
+        lab,
+        labReport,
+        report_storage_hint: 'If a lab report is not stored in the database, use the existing verification.lab_report_registry.report_url/report_path field.'
+      });
+    }
+
+    const harvestQuery = `
+      SELECT
+        h.harvest_id,
+        h.beekeeper_id,
+        br.registered_name AS beekeeper_name,
+        br.state,
+        br.district,
+        al.name AS location_name,
+        h.harvest_date,
+        h.flower_sources,
+        h.quantity_kg,
+        h.lab_ulr,
+        h.ulr_status,
+        h.block_hash,
+        h.tx_ref,
+        COALESCE(h.ulr_status, 'Unverified') AS verification_status,
+        al.location_id,
+        al.gps_coordinates
+      FROM harvests h
+      LEFT JOIN verification.beekeeper_registry br
+        ON br.beekeeper_id = h.beekeeper_id
+      LEFT JOIN apiary_locations al
+        ON al.location_id = h.location_id
+      WHERE h.harvest_id = $1
+    `;
+
+    const harvestRes = await pool.query(harvestQuery, [traceId]);
+
+    if (harvestRes.rows.length === 0) {
+      return res.status(404).json({
+        verified: false,
+        message: 'Trace ID not found in either batch or harvest records'
+      });
+    }
+
+    const harvest = harvestRes.rows[0];
+
+    return res.json({
+      verified: true,
+      recordType: 'harvest',
+      harvest,
+      company: {
+        company_name: null,
+        company_license: null
+      },
+      harvests: [harvest],
+      lab: null,
+      labReport: null
+    });
+  } catch (error) {
+    console.error('Traceability fetch error:', error);
+    return res.status(500).json({
+      verified: false,
+      message: 'Failed to fetch traceability data'
+    });
+  }
+});
+
+app.get('/api/traceability/:batch_id', async (req, res) => {
+  const { batch_id } = req.params;
+  const traceRes = await fetch(`http://localhost:${process.env.PORT || 5000}/api/trace/${encodeURIComponent(batch_id)}`);
+  const traceData = await traceRes.json();
+
+  if (!traceRes.ok || !traceData.verified) {
+    return res.status(404).json({
+      success: false,
+      verified: false,
+      message: 'Batch ID not found'
+    });
+  }
+
+  return res.json({
+    success: true,
+    verified: true,
+    ...traceData
+  });
 });
 // Fetch all apiary locations for a specific beekeeper
 

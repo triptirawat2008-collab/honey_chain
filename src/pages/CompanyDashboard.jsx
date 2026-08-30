@@ -5,6 +5,7 @@ Layers, FileText, Activity, Check, Upload, ArrowRight, ArrowLeft,
 LogOut, AlertCircle, Search, QrCode, Printer, CheckCircle2,
 Users, Sparkles, Filter, ChevronRight
 } from 'lucide-react';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 import { generateMockHash } from '../data/mockData';
 import SpeakerButton from '../components/SpeakerButton';
 
@@ -24,6 +25,10 @@ export default function CompanyDashboard({
   const [processingInfo, setProcessingInfo] = useState('Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.');
   const [labName, setLabName] = useState('Demo Honey Testing Laboratory (NABL #104)');
   const [labReportFile, setLabReportFile] = useState(null);
+  const [ulrNumber, setUlrNumber] = useState('');
+  const [verifiedUlrNumber, setVerifiedUlrNumber] = useState('');
+  const [ulrVerificationMessage, setUlrVerificationMessage] = useState('');
+  const [isVerifyingUlr, setIsVerifyingUlr] = useState(false);
 
   // Verification simulation state
   const [verificationStep, setVerificationStep] = useState(0);
@@ -58,7 +63,7 @@ export default function CompanyDashboard({
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/harvests/verify/${encodeURIComponent(id)}`
+      `/api/harvests/verify/${encodeURIComponent(id)}`
     );
 
     const result = await response.json();
@@ -77,11 +82,58 @@ export default function CompanyDashboard({
   }
 };
 
+  const handleVerifyUlr = async () => {
+    const trimmedUlr = ulrNumber.trim();
+
+    if (!trimmedUlr) {
+      setUlrVerificationMessage('Please enter a lab ULR number to verify.');
+      setVerifiedUlrNumber('');
+      return;
+    }
+
+    setIsVerifyingUlr(true);
+    setUlrVerificationMessage('');
+
+    try {
+      const response = await fetch('/api/verify-ulr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ulrNumber: trimmedUlr })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.verified) {
+        setVerifiedUlrNumber('');
+        setUlrVerificationMessage('The ULR could not be verified. Please check the number and try again.');
+        return;
+      }
+
+      const verifiedLabName = result.lab?.lab_name || labName;
+      setLabName(verifiedLabName);
+      setVerifiedUlrNumber(trimmedUlr);
+      setUlrVerificationMessage(`Verified: ${verifiedLabName}`);
+    } catch (error) {
+      console.error('ULR verification error:', error);
+      setVerifiedUlrNumber('');
+      setUlrVerificationMessage('Could not connect to the verification service.');
+    } finally {
+      setIsVerifyingUlr(false);
+    }
+  };
+
   // Run mock verification workflow
 const handleCreateBatch = async (e) => {
       e.preventDefault();
     if (!productName || !batchQuantity) {
       alert("Please fill in the product name and batch quantity.");
+      return;
+    }
+
+    if (!verifiedUlrNumber) {
+      alert('Please verify the lab ULR before creating the batch.');
+      setCurrentStep(3);
+      setVerificationStep(0);
       return;
     }
     
@@ -118,7 +170,7 @@ const handleCreateBatch = async (e) => {
             processingInfo: processingInfo || "Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.",
             createdDate: new Date().toISOString().split('T')[0],
             labName: labName,
-            labReference: "LAB-SYN-00001",
+            labReference: verifiedUlrNumber,
             labReportName: labReportFile ? labReportFile.name : "batch_report_sih_demo.pdf",
             labStatus: "Verified",
             blockchainStatus: "Verified",
@@ -134,14 +186,14 @@ const handleCreateBatch = async (e) => {
   company_license: user.licenseNumber,
   product_name: productName,
   quantity_kg: parseFloat(batchQuantity) || 500,
-  final_lab_ulr: null,
+  final_lab_ulr: verifiedUlrNumber,
   ulr_status: "Verified",
   manual_report_certified: !!labReportFile,
   is_lab_certified: true,
   harvest_ids: selectedHarvestIds
 };
 
-const response = await fetch('http://localhost:5000/api/batches', {
+const response = await fetch('/api/batches', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -189,20 +241,32 @@ const resetBatchForm = () => {
   // Start with NO harvest selected
   setSelectedHarvestIds([]);
   setHarvestIdInput('');
+  setUlrNumber('');
+  setVerifiedUlrNumber('');
+  setUlrVerificationMessage('');
 
   setProductName('Raw Organic Mustard & Multifloral Honey (500g Jar)');
   setBatchQuantity('500 kg (1,000 Jars)');
   setProcessingInfo(
     'Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.'
   );
+  setLabName('Demo Honey Testing Laboratory (NABL #104)');
   setLabReportFile(null);
 };
 
-  // Calculate unique beekeepers from selected harvests
-  const selectedHarvestDetails = harvests.filter(h => selectedHarvestIds.includes(h.harvestId));
-  const uniqueBeekeepers = selectedHarvestIds.length;
-  const totalVolume = batches.reduce((acc, curr) => acc + (parseInt(curr.batchQuantity) || 500), 0);
+  const totalVolume = batches.reduce(
+    (acc, curr) => acc + (parseFloat(curr.quantity_kg ?? curr.batchQuantity) || 0),
+    0
+  );
 
+const uniqueBeekeepers = new Set(
+  selectedHarvestIds
+    .map(id => {
+      const harvest = harvests.find(h => h.harvestId === id);
+      return harvest?.beekeeperId || harvest?.beekeeperName;
+    })
+    .filter(Boolean)
+).size;
   // Filter harvests by search query
   const filteredHarvests = harvests.filter(h => 
     h.harvestId.toLowerCase().includes(harvestSearch.toLowerCase()) ||
@@ -215,7 +279,7 @@ useEffect(() => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/batches/${encodeURIComponent(user.licenseNumber)}`
+        `/api/batches/${encodeURIComponent(user.licenseNumber)}`
       );
 
       const result = await response.json();
@@ -429,7 +493,6 @@ useEffect(() => {
                         <th>{primaryLang === 'hi' ? 'मात्रा' : 'Quantity'}</th>
                         <th>{primaryLang === 'hi' ? 'तारीख' : 'Created Date'}</th>
                         <th>{primaryLang === 'hi' ? 'QR कोड' : 'Master QR'}</th>
-                        <th>{primaryLang === 'hi' ? 'सत्यापन' : 'Action'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -454,17 +517,6 @@ useEffect(() => {
                             <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>
                               🟢 ✓ Master QR Ready
                             </span>
-                          </td>
-                          <td>
-                            <button 
-                              className="btn btn-outline-green btn-sm"
-                              onClick={() => {
-                                setActiveTraceId(b.batchId);
-                                setView('consumer-trace');
-                              }}
-                            >
-                              <QrCode size={14} /> {primaryLang === 'hi' ? 'उपभोक्ता जाँच' : 'Verify'}
-                            </button>
                           </td>
                         </tr>
                       ))}
@@ -765,19 +817,45 @@ useEffect(() => {
                 <div className="wizard-body">
                   <div className="wizard-question-box">
                     <div className="form-group">
-                      <label className="form-label" htmlFor="company-lab-select">
-                        {primaryLang === 'hi' ? 'मान्यता प्राप्त टेस्टिंग लैब:' : 'Accredited Testing Laboratory:'}
+                      <label className="form-label" htmlFor="company-ulr-input">
+                        {primaryLang === 'hi' ? 'लैब ULR नंबर:' : 'Laboratory ULR Number:'}
                       </label>
-                      <select 
-                        id="company-lab-select"
-                        className="form-input"
-                        value={labName}
-                        onChange={(e) => setLabName(e.target.value)}
-                        style={{ height: '52px' }}
-                      >
-                        <option value="Demo Honey Testing Laboratory (NABL #104)">Demo Honey Testing Laboratory (NABL #104)</option>
-                        <option value="National Honey Analytics & Purity Center">National Honey Analytics & Purity Center</option>
-                      </select>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <input
+                          id="company-ulr-input"
+                          type="text"
+                          className="form-input"
+                          value={ulrNumber}
+                          onChange={(e) => {
+                            setUlrNumber(e.target.value);
+                            if (verifiedUlrNumber && e.target.value.trim() !== verifiedUlrNumber) {
+                              setVerifiedUlrNumber('');
+                              setUlrVerificationMessage('');
+                            }
+                          }}
+                          placeholder="e.g. ULR-123456789"
+                          style={{ height: '52px', flex: '1 1 240px' }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={handleVerifyUlr}
+                          disabled={isVerifyingUlr}
+                          style={{ minWidth: '150px' }}
+                        >
+                          {isVerifyingUlr ? 'Verifying...' : 'Verify ULR'}
+                        </button>
+                      </div>
+                      {ulrVerificationMessage && (
+                        <div style={{ marginTop: '0.6rem', color: verifiedUlrNumber ? '#15803D' : '#B91C1C', fontSize: '0.88rem', fontWeight: 700 }}>
+                          {ulrVerificationMessage}
+                        </div>
+                      )}
+                      {verifiedUlrNumber && (
+                        <div style={{ marginTop: '0.5rem', color: '#15803D', fontSize: '0.82rem', fontWeight: 700 }}>
+                          Verified lab ULR: {verifiedUlrNumber}
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-group">
@@ -861,8 +939,20 @@ useEffect(() => {
                           🏷️ HoneyChain Master Retail Label • शुद्धता गारंटी
                         </div>
 
-                        <div className="qr-large-graphic">
-                          <QrCode size={180} color="#1F2937" />
+                        <div className="qr-large-graphic" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+                          {createdBatchId && (() => {
+                            const traceUrl = `${window.location.origin}/trace/${encodeURIComponent(createdBatchId)}`;
+                            return (
+                              <QRCode
+                                value={traceUrl}
+                                size={180}
+                                bgColor="#ffffff"
+                                fgColor="#111827"
+                                level="H"
+                                includeMargin
+                              />
+                            );
+                          })()}
                         </div>
 
                         <div className="qr-details-block">
@@ -878,6 +968,11 @@ useEffect(() => {
                           <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                             {user.companyName} • {batchQuantity}
                           </div>
+                          {verifiedUlrNumber && (
+                            <div style={{ fontSize: '0.8rem', color: '#15803D', marginTop: '0.35rem', fontWeight: 700 }}>
+                              Verified ULR: {verifiedUlrNumber}
+                            </div>
+                          )}
                         </div>
 
                         <button 

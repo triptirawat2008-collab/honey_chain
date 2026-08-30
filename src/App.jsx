@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import LandingPage from './pages/LandingPage';
 import RoleSelection from './pages/RoleSelection';
 import BeekeeperRegistration from './pages/BeekeeperRegistration';
@@ -10,7 +10,13 @@ import TopDemoBar from './components/TopDemoBar';
 
 import {
   BEEKEEPER_REGISTRY,
-  LICENSE_REGISTRY
+  LICENSE_REGISTRY,
+  INITIAL_HARVESTS,
+  INITIAL_BATCHES,
+  INITIAL_APIARIES,
+  INITIAL_HEALTH_LOGS,
+  INITIAL_REMINDERS,
+  INITIAL_HISTORY
 } from './data/mockData';
 
 function App() {
@@ -37,21 +43,41 @@ function App() {
   const [reminders, setReminders] = useState([]);
   const [history, setHistory] = useState([]);
 
+  useEffect(() => {
+    const syncConsumerRoute = () => {
+      const match = window.location.pathname.match(/^\/trace\/(.+)$/);
+      if (match) {
+        const batchId = decodeURIComponent(match[1]);
+        setActiveTraceId(batchId);
+        setView('consumer-trace');
+      }
+    };
+
+    syncConsumerRoute();
+    window.addEventListener('popstate', syncConsumerRoute);
+
+    return () => window.removeEventListener('popstate', syncConsumerRoute);
+  }, []);
+
+  useEffect(() => {
+    if (view === 'consumer-trace' && activeTraceId) {
+      const expectedPath = `/trace/${encodeURIComponent(activeTraceId)}`;
+      if (window.location.pathname !== expectedPath) {
+        window.history.pushState({}, '', expectedPath);
+      }
+    } else if (window.location.pathname.startsWith('/trace/')) {
+      window.history.pushState({}, '', '/');
+    }
+  }, [view, activeTraceId]);
+
   return (
     <div className="honey-app-wrapper">
       {/* Top Persistent SIH Demo Navigation Bar */}
-      <TopDemoBar 
-        view={view}
-        setView={setView}
-        setBeekeeperUser={setBeekeeperUser}
-        setCompanyUser={setCompanyUser}
-        setActiveTraceId={setActiveTraceId}
+      <TopDemoBar
         isOffline={isOffline}
         setIsOffline={setIsOffline}
         primaryLang={primaryLang}
         setPrimaryLang={setPrimaryLang}
-        BEEKEEPER_REGISTRY={BEEKEEPER_REGISTRY}
-        LICENSE_REGISTRY={LICENSE_REGISTRY}
       />
 
       {/* State-based Navigation Router */}
@@ -123,6 +149,7 @@ function App() {
       {view === 'consumer-trace' && (
         <ConsumerTraceability
           traceId={activeTraceId}
+          setActiveTraceId={setActiveTraceId}
           setView={setView}
           harvests={harvests}
           batches={batches}
