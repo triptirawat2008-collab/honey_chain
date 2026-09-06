@@ -19,18 +19,6 @@ export const TRANSLATIONS = {
     en: "🔍 Verify Honey (QR)",
     hi: "🔍 शहद की जाँच (QR)"
   },
-  onlineStatus: {
-    en: "🟢 Live Sync (Online)",
-    hi: "🟢 ऑनलाइन • लाइव सिंक"
-  },
-  offlineStatus: {
-    en: "🟡 Saved Offline (2G/Patchy)",
-    hi: "🟡 ऑफलाइन • फोन में सुरक्षित"
-  },
-  syncPendingMsg: {
-    en: "Saved on phone. Will sync automatically when 2G/4G connects.",
-    hi: "फोन में सुरक्षित है। इंटरनेट आने पर अपने आप सर्वर पर चला जाएगा।"
-  },
   langToggleLabel: {
     en: "A / अ",
     hi: "अ / A"

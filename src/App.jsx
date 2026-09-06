@@ -25,9 +25,6 @@ function App() {
   // Dual Language State: 'hi' (Hindi Primary) or 'en' (English Primary)
   const [primaryLang, setPrimaryLang] = useState('hi');
 
-  // Low Connectivity / 2G Offline Simulation State
-  const [isOffline, setIsOffline] = useState(false);
-
   // Authenticated/Verified Users (Initialized as null so new users start clean)
   const [beekeeperUser, setBeekeeperUser] = useState(null);
   const [companyUser, setCompanyUser] = useState(null);
@@ -80,8 +77,6 @@ useEffect(() => {
     <div className="honey-app-wrapper">
       {/* Top Persistent SIH Demo Navigation Bar */}
       <TopDemoBar
-        isOffline={isOffline}
-        setIsOffline={setIsOffline}
         primaryLang={primaryLang}
         setPrimaryLang={setPrimaryLang}
       />
@@ -134,7 +129,6 @@ useEffect(() => {
           setHistory={setHistory}
           setActiveTraceId={setActiveTraceId}
           primaryLang={primaryLang}
-          isOffline={isOffline}
         />
       )}
 

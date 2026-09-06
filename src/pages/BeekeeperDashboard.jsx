@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Hexagon, LayoutDashboard, PlusCircle, Compass, Clipboard, 
-  Bell, History, LogOut, ShieldCheck, MapPin, Layers, 
+  Bell, LogOut, ShieldCheck, MapPin, Layers, 
   Activity, Check, FileText, Upload, Calendar, X,
   Camera, Mic, MicOff, Volume2, Sparkles, QrCode, ArrowRight,
-  ArrowLeft, CheckCircle2, AlertTriangle, Printer, WifiOff, Wifi,
+  ArrowLeft, CheckCircle2, AlertTriangle, Printer,
   ChevronRight, RefreshCw
 } from 'lucide-react';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
@@ -13,9 +13,9 @@ import SpeakerButton from '../components/SpeakerButton';
 export default function BeekeeperDashboard({ 
   user, setView, harvests, setHarvests, apiaries, setApiaries, 
   healthLogs, setHealthLogs, reminders, setReminders, history, setHistory,
-  setActiveTraceId, primaryLang = 'hi', isOffline = false
+  setActiveTraceId, primaryLang = 'hi'
 }) {
-  // Mobile / Sub-tab navigation: 'overview', 'harvests', 'create-harvest', 'apiaries', 'health', 'reminders', 'history'
+  // Mobile / Sub-tab navigation: 'overview', 'harvests', 'create-harvest', 'apiaries', 'health', 'reminders'
   const [activeSubTab, setActiveSubTab] = useState('overview');
   
   // Guided Wizard Step for Create Harvest (1 to 6)
@@ -320,13 +320,6 @@ const startVerificationProcess = async () => {
 
               setHarvests(prev => [savedHarvest, ...prev]);
 
-              const newHistoryItem = {
-                id: `H-${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                type: "Harvest Created",
-                details: `Created Harvest ${newHarvestId} (${savedHarvest.flowerSources.join('/')}) from ${savedHarvest.locationName}.`
-              };
-              setHistory(prev => [newHistoryItem, ...prev]);
             }, 900);
           } catch (err) {
             console.error('Failed to persist harvest to PostgreSQL:', err);
@@ -602,13 +595,6 @@ const handleExecuteMove = () => {
       });
       setApiaries(updatedApiaries);
 
-      const newHistoryItem = {
-        id: `H-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: "Location Updated",
-        details: `Moved ALL colonies of ${activeApiaryForMove.name} to new GPS location: ${newGps}.`
-      };
-      setHistory([newHistoryItem, ...history]);
     } else {
       const parsedMove = parseInt(moveCount) || 1;
       if (parsedMove >= activeApiaryForMove.hiveCount) {
@@ -644,13 +630,6 @@ const handleExecuteMove = () => {
 
       setApiaries([...updatedApiaries, newApiary]);
 
-      const newHistoryItem = {
-        id: `H-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: "Colonies Split",
-        details: `Split ${parsedMove} colonies from ${activeApiaryForMove.name} and established Location: ${newLocId} at GPS: ${newGps}.`
-      };
-      setHistory([newHistoryItem, ...history]);
     }
 
     setShowMoveModal(false);
@@ -717,14 +696,6 @@ const handleExecuteMove = () => {
         return a;
       });
       setApiaries(updatedApiaries);
-
-      const newHistoryItem = {
-        id: `H-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: "Health Log Added",
-        details: `Logged health for ${targetApiary.name}: ${logStatus} (${logColonies} affected boxes).`
-      };
-      setHistory(prev => [newHistoryItem, ...prev]);
 
       setLogColonies(0);
       setLogNotes('');
@@ -846,13 +817,6 @@ const handleExecuteMove = () => {
             <span>{primaryLang === 'hi' ? 'याद दिलाएं / कार्य' : 'Reminders & Alerts'}</span>
           </li>
 
-          <li 
-            className={`sidebar-item ${activeSubTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveSubTab('history')}
-          >
-            <History size={20} />
-            <span>{primaryLang === 'hi' ? 'ऑडिट इतिहास' : 'Audit History'}</span>
-          </li>
         </ul>
 
         <div className="sidebar-footer">
@@ -903,29 +867,6 @@ const handleExecuteMove = () => {
             </span>
           </div>
         </header>
-
-        {/* Offline / Online Sync Status Banner */}
-        {isOffline ? (
-          <div className="offline-sync-banner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <WifiOff size={20} />
-              <div>
-                <strong>{primaryLang === 'hi' ? '🟡 ऑफलाइन मोड सक्रिय (फोन में सुरक्षित)' : '🟡 Offline Mode Active (Saved on Device)'}</strong>
-                <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                  {primaryLang === 'hi' ? 'आप बिना इंटरनेट के भी नया शहद दर्ज कर सकते हैं। 2G/4G नेटवर्क आने पर अपने आप क्लाउड पर सिंक हो जाएगा।' : 'You can log harvests offline. Records will sync to HoneyChain ledger when network reconnects.'}
-                </div>
-              </div>
-            </div>
-            <span className="badge-offline-count">3 {primaryLang === 'hi' ? 'बदलाव सुरक्षित' : 'Pending Sync'}</span>
-          </div>
-        ) : (
-          <div className="online-sync-banner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Wifi size={16} />
-              <span>{primaryLang === 'hi' ? '🟢 लाइव सिंक चालू • राष्ट्रीय मधुक्रांति सर्वर से जुड़ा हुआ है' : '🟢 Live Sync Active • Connected to HoneyChain Ledger'}</span>
-            </div>
-          </div>
-        )}
 
         {/* SINGLE MOST PROMINENT ACTION: Huge 64px "Create New Harvest" Button (Always reachable) */}
         {activeSubTab !== 'create-harvest' && (
@@ -2084,28 +2025,6 @@ const handleExecuteMove = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 7: AUDIT HISTORY */}
-          {activeSubTab === 'history' && (
-            <div>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1rem' }}>
-                {primaryLang === 'hi' ? 'खाता ऑडिट एवं कार्य इतिहास' : 'Audit Logs & Operation History'}
-              </h2>
-              <div className="history-list">
-                {history.map(item => (
-                  <div key={item.id} className="history-item">
-                    <div className="history-time">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </div>
-                    <div className="history-info">
-                      <div className="history-type">{item.type}</div>
-                      <div className="history-desc">{item.details}</div>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}

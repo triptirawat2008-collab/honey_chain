@@ -458,18 +458,6 @@ useEffect(() => {
                   </div>
                 </div>
 
-                <div className="stats-card-rural">
-                  <div className="stats-card-icon-box" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
-                    🛡️
-                  </div>
-                  <div className="stats-info">
-                    <h4>{primaryLang === 'hi' ? 'ब्लॉकचेन लेजर' : 'Blockchain Ledger'}</h4>
-                    <p className="stats-status-text" style={{ color: 'var(--color-secondary-dark)' }}>
-                      🟢 TAMPER-EVIDENT
-                    </p>
-                    <span className="stats-sub-note">{primaryLang === 'hi' ? 'सुरक्षित लेजर' : 'Zero alterations'}</span>
-                  </div>
-                </div>
               </div>
 
               {/* Batches Table */}

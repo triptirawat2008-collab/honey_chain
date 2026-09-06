@@ -901,43 +901,6 @@ a {
 }
 
 /* ==================================================
-   OFFLINE / ONLINE BANNERS
-================================================== */
-.offline-sync-banner {
-  background-color: #FEF3C7;
-  border: 2px solid var(--color-warning);
-  color: #92400E;
-  padding: 0.9rem 1.25rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.badge-offline-count {
-  background-color: #D97706;
-  color: #FFFFFF;
-  font-size: 0.8rem;
-  font-weight: 800;
-  padding: 0.3rem 0.7rem;
-  border-radius: 9999px;
-}
-
-.online-sync-banner {
-  background-color: #DCFCE7;
-  border: 1px solid rgba(46, 125, 50, 0.3);
-  color: #14532D;
-  padding: 0.6rem 1rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1.5rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-/* ==================================================
    MEGA ACTION BUTTON (Primary Dashboard Callout)
 ================================================== */
 .mega-action-container {

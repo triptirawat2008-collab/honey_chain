@@ -1,9 +1,7 @@
 import React from 'react';
-import { ShieldCheck, Wifi, WifiOff, Globe } from 'lucide-react';
+import { ShieldCheck, Globe } from 'lucide-react';
 
 export default function TopDemoBar({
-  isOffline,
-  setIsOffline,
   primaryLang,
   setPrimaryLang
 }) {
@@ -21,25 +19,6 @@ export default function TopDemoBar({
       </div>
 
       <div className="demo-bar-right">
-        {/* Network Offline Simulation Toggle */}
-        <button
-          className={`demo-toggle-btn ${isOffline ? 'offline-active' : 'online-active'}`}
-          onClick={() => setIsOffline(!isOffline)}
-          title="Simulate low connectivity / 2G village offline mode"
-        >
-          {isOffline ? (
-            <>
-              <WifiOff size={14} />
-              <span>🟡 {primaryLang === 'hi' ? 'ऑफलाइन मोड (2G सिम्युलेटर)' : 'Offline Mode (2G Sync)'}</span>
-            </>
-          ) : (
-            <>
-              <Wifi size={14} />
-              <span>🟢 {primaryLang === 'hi' ? 'ऑनलाइन (लाइव सिंक)' : 'Online (Live Sync)'}</span>
-            </>
-          )}
-        </button>
-
         {/* Dual-Language Toggle (A / अ) */}
         <button
           className="demo-lang-btn"
