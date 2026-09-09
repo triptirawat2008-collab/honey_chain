@@ -49,6 +49,34 @@ const honeyChainContract = new ethers.Contract(
     contractJson.abi,
     wallet,
 );
+
+const createBatchRecordHash = ({
+    batchId,
+    companyLicense,
+    productName,
+    quantityKg,
+    finalLabUlr,
+    ulrStatus,
+    manualReportStatus,
+    isLabCertified,
+    manualReportCertified
+}) => {
+    return ethers.keccak256(
+        ethers.toUtf8Bytes(
+            JSON.stringify({
+                batchId,
+                companyLicense,
+                productName,
+                quantityKg: Number(quantityKg),
+                finalLabUlr: finalLabUlr || "",
+                ulrStatus: ulrStatus || "Verified",
+                manualReportStatus: manualReportStatus || "",
+                isLabCertified: Boolean(isLabCertified),
+                manualReportCertified: Boolean(manualReportCertified)
+            })
+        )
+    );
+};
 // Log the resolved contract address for verification
 console.log("HoneyChain contract target:", honeyChainContract.target);
 
@@ -111,10 +139,27 @@ app.get("/api/verify/beekeeper/:beekeeperId", async (req, res) => {
             });
         }
 
+        const beekeeperData = result.rows[0];
+
+        // Ensure verified beekeeper is registered on blockchain
+        try {
+            const onChainBeekeeper = await honeyChainContract.beekeepers(beekeeperData.beekeeper_id);
+            if (!onChainBeekeeper.exists) {
+                const tx = await honeyChainContract.registerBeekeeper(
+                    beekeeperData.beekeeper_id,
+                    beekeeperData.status || "ACTIVE"
+                );
+                await tx.wait();
+                console.log(`Beekeeper ${beekeeperData.beekeeper_id} registered on blockchain`);
+            }
+        } catch (chainErr) {
+            console.error("Error ensuring beekeeper on blockchain during verification:", chainErr.shortMessage || chainErr.message);
+        }
+
         res.json({
             verified: true,
             message: "Beekeeper ID verified",
-            data: result.rows[0]
+            data: beekeeperData
         });
 
     } catch (error) {
@@ -305,7 +350,9 @@ app.post("/api/blockchain/harvest", async (req, res) => {
         res.json({
             success: true,
             message: "Harvest registered on blockchain",
-            transactionHash: receipt.hash
+            transactionHash: receipt.hash,
+            blockNumber: receipt.blockNumber
+            
         });
 
     } catch (error) {
@@ -325,40 +372,64 @@ app.post("/api/blockchain/batch", async (req, res) => {
             productName,
             quantityKg,
             finalLabUlr,
-            ulrStatus
+            ulrStatus,
+            manualReportStatus,
+            isLabCertified,
+            manualReportCertified
         } = req.body;
 
-        if (!batchId || !companyLicense || !productName || quantityKg === undefined) {
+        if (
+            !batchId ||
+            !companyLicense ||
+            !productName ||
+            quantityKg === undefined
+        ) {
             return res.status(400).json({
                 success: false,
                 message: "Required batch fields are missing"
             });
         }
 
+        const recordHash = createBatchRecordHash({
+            batchId,
+            companyLicense,
+            productName,
+            quantityKg,
+            finalLabUlr,
+            ulrStatus,
+            manualReportStatus,
+            isLabCertified,
+            manualReportCertified
+        });
+
         const tx = await honeyChainContract.createBatch(
-          batchId,
-      companyLicense,
-      productName,
-      Number(quantityKg),
-      finalLabUlr || "",
-      ulrStatus || "Verified",
-      req.body.manualReportStatus || "",
-      req.body.isLabCertified || false,
-      req.body.manualReportCertified || false
-  );
+            batchId,
+            companyLicense,
+            productName,
+            Number(quantityKg),
+            finalLabUlr || "",
+            ulrStatus || "Verified",
+            manualReportStatus || "",
+            Boolean(isLabCertified),
+            Boolean(manualReportCertified),
+            recordHash
+        );
 
         const receipt = await tx.wait();
 
-        res.json({
+        return res.json({
             success: true,
             message: "Batch registered on blockchain",
-            transactionHash: receipt.hash
+            batchId,
+            recordHash,
+            transactionHash: receipt.hash,
+            blockNumber: receipt.blockNumber
         });
 
     } catch (error) {
         console.error("Blockchain batch error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: error.shortMessage || error.message
         });
@@ -573,6 +644,20 @@ app.post('/api/locations', async (req, res) => {
     const values = [location_id, beekeeper_id, name || 'Apiary Site', gps_coordinates, hive_count];
     const result = await pool.query(query, values);
 
+    // Sync to blockchain if beekeeper exists on chain
+    try {
+      const onChainBeekeeper = await honeyChainContract.beekeepers(beekeeper_id);
+      if (onChainBeekeeper.exists) {
+        const onChainApiary = await honeyChainContract.apiaries(location_id);
+        if (!onChainApiary.exists) {
+          const tx = await honeyChainContract.registerApiary(location_id, beekeeper_id);
+          await tx.wait();
+        }
+      }
+    } catch (chainErr) {
+      console.error('Error syncing apiary to blockchain:', chainErr.shortMessage || chainErr.message);
+    }
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('APIARY CREATION ERROR:', err.message);
@@ -654,13 +739,226 @@ app.get('/api/health-logs/:beekeeper_id', async (req, res) => {
 });
 
 // ==========================================
+// 1.1 IOT ENVIRONMENTAL MONITORING ROUTES
+// ==========================================
+
+// In-memory fallback array for IoT readings if database table is not present
+const inMemoryIotReadings = [
+  {
+    sensor_id: "TEMP-HUM-001",
+    location_id: "LOC-001",
+    timestamp: "2026-09-09T18:30:00Z",
+    temperature: 31.4,
+    humidity: 68
+  },
+  {
+    sensor_id: "TEMP-HUM-001",
+    location_id: "LOC-001",
+    timestamp: "2026-09-09T18:20:00Z",
+    temperature: 31.1,
+    humidity: 67
+  },
+  {
+    sensor_id: "TEMP-HUM-001",
+    location_id: "LOC-001",
+    timestamp: "2026-09-09T18:10:00Z",
+    temperature: 30.8,
+    humidity: 66
+  },
+  {
+    sensor_id: "TEMP-HUM-002",
+    location_id: "LOC-002",
+    timestamp: "2026-09-09T18:30:00Z",
+    temperature: 32.2,
+    humidity: 64
+  }
+];
+
+// Helper: Evaluate Rule-based Environmental Status (No ML)
+const evaluateEnvStatus = (temperature, humidity) => {
+  const temp = Number(temperature);
+  const hum = Number(humidity);
+  const isTempNormal = temp >= 30.0 && temp <= 36.0;
+  const isHumNormal = hum >= 50.0 && hum <= 70.0;
+  return isTempNormal && isHumNormal ? "Normal" : "Warning";
+};
+
+// Post new IoT environmental sensor reading (from mock or physical Arduino/ESP32)
+app.post('/api/iot/readings', async (req, res) => {
+  try {
+    const { sensorId, locationId, timestamp, temperature, humidity } = req.body;
+
+    if (!sensorId || !locationId || temperature === undefined || humidity === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'sensorId, locationId, temperature, and humidity are required.'
+      });
+    }
+
+    const recordedTime = timestamp || new Date().toISOString();
+    const envStatus = evaluateEnvStatus(temperature, humidity);
+
+    // Attempt PostgreSQL persistence if table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.iot_readings (
+          id SERIAL PRIMARY KEY,
+          sensor_id VARCHAR(50) NOT NULL,
+          location_id VARCHAR(50) NOT NULL,
+          temperature NUMERIC(5,2) NOT NULL,
+          humidity NUMERIC(5,2) NOT NULL,
+          status VARCHAR(20) DEFAULT 'Normal',
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      const insertRes = await pool.query(
+        `INSERT INTO public.iot_readings (sensor_id, location_id, temperature, humidity, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *;`,
+        [sensorId, locationId, Number(temperature), Number(humidity), envStatus, recordedTime]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'IoT sensor reading recorded successfully',
+        data: {
+          sensorId: insertRes.rows[0].sensor_id,
+          locationId: insertRes.rows[0].location_id,
+          temperature: Number(insertRes.rows[0].temperature),
+          humidity: Number(insertRes.rows[0].humidity),
+          status: insertRes.rows[0].status,
+          timestamp: insertRes.rows[0].timestamp
+        }
+      });
+    } catch (dbErr) {
+      console.warn('DB write for IoT fallback to in-memory:', dbErr.message);
+      const fallbackItem = {
+        sensor_id: sensorId,
+        location_id: locationId,
+        temperature: Number(temperature),
+        humidity: Number(humidity),
+        status: envStatus,
+        timestamp: recordedTime
+      };
+      inMemoryIotReadings.unshift(fallbackItem);
+      return res.status(201).json({
+        success: true,
+        message: 'IoT sensor reading recorded (memory storage)',
+        data: {
+          sensorId,
+          locationId,
+          temperature: Number(temperature),
+          humidity: Number(humidity),
+          status: envStatus,
+          timestamp: recordedTime
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error handling IoT reading:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Fetch IoT readings for a specific location
+app.get('/api/iot/readings/:locationId', async (req, res) => {
+  try {
+    const { locationId } = req.params;
+
+    try {
+      const dbRes = await pool.query(
+        `SELECT * FROM public.iot_readings
+         WHERE location_id = $1
+         ORDER BY timestamp DESC
+         LIMIT 50;`,
+        [locationId]
+      );
+
+      if (dbRes.rows.length > 0) {
+        return res.json({
+          success: true,
+          data: dbRes.rows.map(r => ({
+            sensorId: r.sensor_id,
+            locationId: r.location_id,
+            temperature: Number(r.temperature),
+            humidity: Number(r.humidity),
+            status: r.status || evaluateEnvStatus(r.temperature, r.humidity),
+            timestamp: r.timestamp
+          }))
+        });
+      }
+    } catch (dbErr) {
+      console.warn('DB query for IoT fallback to memory:', dbErr.message);
+    }
+
+    const matched = inMemoryIotReadings.filter(r => r.location_id === locationId);
+    return res.json({
+      success: true,
+      data: matched.map(r => ({
+        sensorId: r.sensor_id,
+        locationId: r.location_id,
+        temperature: Number(r.temperature),
+        humidity: Number(r.humidity),
+        status: r.status || evaluateEnvStatus(r.temperature, r.humidity),
+        timestamp: r.timestamp
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching IoT readings for location:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Fetch all recent IoT readings
+app.get('/api/iot/readings', async (req, res) => {
+  try {
+    try {
+      const dbRes = await pool.query(
+        `SELECT * FROM public.iot_readings
+         ORDER BY timestamp DESC
+         LIMIT 100;`
+      );
+
+      if (dbRes.rows.length > 0) {
+        return res.json({
+          success: true,
+          data: dbRes.rows.map(r => ({
+            sensorId: r.sensor_id,
+            locationId: r.location_id,
+            temperature: Number(r.temperature),
+            humidity: Number(r.humidity),
+            status: r.status || evaluateEnvStatus(r.temperature, r.humidity),
+            timestamp: r.timestamp
+          }))
+        });
+      }
+    } catch (dbErr) {
+      console.warn('DB query all IoT fallback to memory:', dbErr.message);
+    }
+
+    return res.json({
+      success: true,
+      data: inMemoryIotReadings.map(r => ({
+        sensorId: r.sensor_id,
+        locationId: r.location_id,
+        temperature: Number(r.temperature),
+        humidity: Number(r.humidity),
+        status: r.status || evaluateEnvStatus(r.temperature, r.humidity),
+        timestamp: r.timestamp
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching all IoT readings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // 2. TRACEABILITY ROUTES (Solo Beekeeper)
 // ==========================================
 
 // Create a Harvest
-// POST route to create a new harvest record
-// POST route to create a new harvest record
-// POST route to create a new harvest record
 // POST route to create a new harvest record
 app.post('/api/harvests', async (req, res) => {
   try {
@@ -681,6 +979,63 @@ app.post('/api/harvests', async (req, res) => {
         success: false,
         error: 'Missing required harvest fields'
       });
+    }
+
+    // 1. Verify beekeeper exists in official database registry
+    const beekeeperResult = await pool.query(
+      `SELECT beekeeper_id, registered_name, status FROM verification.beekeeper_registry WHERE beekeeper_id = $1`,
+      [beekeeper_id]
+    );
+
+    if (beekeeperResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Beekeeper ${beekeeper_id} is not verified in the registry`
+      });
+    }
+
+    const beekeeperRow = beekeeperResult.rows[0];
+
+    // 2. Ensure verified beekeeper is registered on blockchain
+    try {
+      const onChainBeekeeper = await honeyChainContract.beekeepers(beekeeper_id);
+      if (!onChainBeekeeper.exists) {
+        const txBk = await honeyChainContract.registerBeekeeper(
+          beekeeper_id,
+          beekeeperRow.status || 'ACTIVE'
+        );
+        await txBk.wait();
+        console.log(`Beekeeper ${beekeeper_id} registered on blockchain before harvest creation`);
+      }
+    } catch (bkErr) {
+      console.error('Error ensuring beekeeper on chain:', bkErr.shortMessage || bkErr.message);
+    }
+
+    // 3. Ensure apiary location exists and is registered on blockchain
+    try {
+      const onChainApiary = await honeyChainContract.apiaries(location_id);
+      if (!onChainApiary.exists) {
+        const apiaryCheck = await pool.query(
+          `SELECT location_id FROM apiary_locations WHERE location_id = $1`,
+          [location_id]
+        );
+        if (apiaryCheck.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO apiary_locations (location_id, beekeeper_id, name, gps_coordinates, hive_count)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (location_id) DO NOTHING`,
+            [location_id, beekeeper_id, 'Apiary Site', gps_coordinates || '28.8500, 79.1000', 8]
+          );
+        }
+        const txApiary = await honeyChainContract.registerApiary(
+          location_id,
+          beekeeper_id
+        );
+        await txApiary.wait();
+        console.log(`Apiary ${location_id} registered on blockchain before harvest creation`);
+      }
+    } catch (apErr) {
+      console.error('Error ensuring apiary on chain:', apErr.shortMessage || apErr.message);
     }
 
     const flowers = Array.isArray(flower_sources)
@@ -1132,14 +1487,57 @@ app.get('/api/trace/:traceId', async (req, res) => {
       }
 
       // ==========================================
-      // 5. RETURN COMPLETE BATCH TRACEABILITY
+      // 5. GET ON-CHAIN RECORD HASH & EVENT DATA
+      // ==========================================
+
+      let recordHash = null;
+      let blockNumber = null;
+      let transactionHash = null;
+
+      try {
+        const onChainHash = await honeyChainContract.getBatchRecordHash(traceId);
+        if (onChainHash && onChainHash !== ethers.ZeroHash) {
+          recordHash = onChainHash;
+        }
+      } catch (bcError) {
+        console.warn(`Could not retrieve on-chain record hash for batch ${traceId}:`, bcError.shortMessage || bcError.message);
+        recordHash = null;
+      }
+
+      try {
+        const filter = honeyChainContract.filters.BatchCreated();
+        const events = await honeyChainContract.queryFilter(filter, 0, "latest");
+        const matchingEvent = events
+          .slice()
+          .reverse()
+          .find((ev) => ev.args && ev.args[0] === traceId);
+
+        if (matchingEvent) {
+          blockNumber = matchingEvent.blockNumber ?? null;
+          transactionHash = matchingEvent.transactionHash ?? null;
+        }
+      } catch (eventError) {
+        console.warn(`Could not retrieve blockchain event data for batch ${traceId}:`, eventError.shortMessage || eventError.message);
+      }
+
+      // ==========================================
+      // 6. RETURN COMPLETE BATCH TRACEABILITY
       // ==========================================
 
       return res.json({
         verified: true,
         recordType: 'batch',
 
-        batch: batch,
+        batch: {
+          ...batch,
+          recordHash,
+          blockNumber,
+          transactionHash
+        },
+
+        recordHash,
+        blockNumber,
+        transactionHash,
 
         company: {
           company_name: batch.company_name || null,

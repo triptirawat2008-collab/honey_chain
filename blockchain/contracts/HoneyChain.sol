@@ -69,20 +69,20 @@ contract HoneyChain {
     // 5. BATCH
     // =========================
 
-    struct Batch {
-        string batchId;
-        string companyLicense;
-        string productName;
-        uint256 quantityKg;
-        string finalLabUlr;
-        string ulrStatus;
-        string manualReportStatus;
-        bool isLabCertified;
-        bool manualReportCertified;
-        uint256 createdAt;
-        bool exists;
-    }
-
+struct Batch {
+    string batchId;
+    string companyLicense;
+    string productName;
+    uint256 quantityKg;
+    string finalLabUlr;
+    string ulrStatus;
+    string manualReportStatus;
+    bool isLabCertified;
+    bool manualReportCertified;
+    uint256 createdAt;
+    bytes32 recordHash;
+    bool exists;
+}
     mapping(string => Batch) public batches;
 
 
@@ -148,10 +148,10 @@ contract HoneyChain {
         string beekeeperId
     );
 
-    event BatchCreated(
-        string batchId
-    );
-
+event BatchCreated(
+    string batchId,
+    bytes32 recordHash
+);
     event HarvestAddedToBatch(
         string batchId,
         string harvestId
@@ -288,40 +288,44 @@ contract HoneyChain {
     }
 
 
-    function createBatch(
-        string memory _batchId,
-        string memory _companyLicense,
-        string memory _productName,
-        uint256 _quantityKg,
-        string memory _finalLabUlr,
-        string memory _ulrStatus,
-        string memory _manualReportStatus,
-        bool _isLabCertified,
-        bool _manualReportCertified
-    ) public {
+function createBatch(
+    string memory _batchId,
+    string memory _companyLicense,
+    string memory _productName,
+    uint256 _quantityKg,
+    string memory _finalLabUlr,
+    string memory _ulrStatus,
+    string memory _manualReportStatus,
+    bool _isLabCertified,
+    bool _manualReportCertified,
+    bytes32 _recordHash
+) public {
 
-        require(
-            !batches[_batchId].exists,
-            "Batch already exists"
-        );
+    require(
+        !batches[_batchId].exists,
+        "Batch already exists"
+    );
 
-        batches[_batchId] = Batch(
-            _batchId,
-            _companyLicense,
-            _productName,
-            _quantityKg,
-            _finalLabUlr,
-            _ulrStatus,
-            _manualReportStatus,
-            _isLabCertified,
-            _manualReportCertified,
-            block.timestamp,
-            true
-        );
+    batches[_batchId] = Batch(
+        _batchId,
+        _companyLicense,
+        _productName,
+        _quantityKg,
+        _finalLabUlr,
+        _ulrStatus,
+        _manualReportStatus,
+        _isLabCertified,
+        _manualReportCertified,
+        block.timestamp,
+        _recordHash,
+        true
+    );
 
-        emit BatchCreated(_batchId);
-    }
-
+    emit BatchCreated(
+        _batchId,
+        _recordHash
+    );
+}
 
     function addHarvestToBatch(
         string memory _batchId,
@@ -418,4 +422,15 @@ contract HoneyChain {
 
         return batchHarvests[_batchId];
     }
+    function getBatchRecordHash(
+    string memory _batchId
+) public view returns (bytes32) {
+
+    require(
+        batches[_batchId].exists,
+        "Batch does not exist"
+    );
+
+    return batches[_batchId].recordHash;
+}
 }

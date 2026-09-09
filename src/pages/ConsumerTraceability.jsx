@@ -116,10 +116,7 @@ export default function ConsumerTraceability({
     result.batch?.company_license || 'FSSAI Licensed',
 
   labUlR:
-  result.batch?.final_lab_ulr ||
-  result.harvestLabReports?.[0]?.lab?.ulr_number ||
-  result.harvestLabReports?.[0]?.labReport?.ulr_number ||
-  '',
+    result.batch?.final_lab_ulr || '',
 
 labStatus:
   result.batch?.ulr_status ||
@@ -145,16 +142,25 @@ labReport:
     result.harvests || [],
 
   hash:
-  result.batch?.block_hash || '',
+    result.recordHash ||
+    result.batch?.recordHash ||
+    result.batch?.block_hash ||
+    '',
 
-blockNumber:
-  result.batch?.block_number || null,
+  blockNumber:
+    result.blockNumber ??
+    result.batch?.blockNumber ??
+    result.batch?.block_number ??
+    null,
 
-txRef:
-  result.batch?.tx_ref || '',
+  txRef:
+    result.transactionHash ||
+    result.batch?.transactionHash ||
+    result.batch?.tx_ref ||
+    '',
 
-timestamp:
-  result.batch?.created_at || '',
+  timestamp:
+    result.batch?.created_at || '',
 
 }
           : {
@@ -165,8 +171,9 @@ timestamp:
               flowerSources: normalizeFlowerSources(result.harvest?.flower_sources),
               quantityKg: Number(result.harvest?.harvest_quantity_kg ?? result.harvest?.quantity_kg ?? 160),
               moisture: '17.4% (Pass)',
-              hash: result.harvest?.block_hash || '',
+              hash: result.harvest?.block_hash || result.harvest?.hash || '',
               blockNumber: result.harvest?.block_number || null,
+              txRef: result.harvest?.tx_ref || '',
               timestamp: result.harvest?.created_at || result.harvest?.harvest_date || '',
               productName: result.harvest?.flower_sources ? normalizeFlowerSources(result.harvest.flower_sources).join(' & ') + ' Honey' : 'Pure Indian Honey',
               companyName: result.harvest?.beekeeper_name || 'Verified Beekeeper',
@@ -756,20 +763,20 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
                 <div className="timeline-title">
                   {primaryLang === 'hi' ? '5. डिजिटल सुरक्षा एवं प्रमाण' : '5. Verified Digital Certificate'}
                 </div>
-<p className="timeline-desc">
-  {activeRecord.blockNumber
-    ? (
-        primaryLang === 'hi'
-          ? `डिजिटल लेजर ब्लॉक #${activeRecord.blockNumber} पर सत्यापित।`
-          : `Verified on digital ledger block #${activeRecord.blockNumber}.`
-      )
-    : (
-        primaryLang === 'hi'
-          ? 'ब्लॉकचेन रिकॉर्ड उपलब्ध है, लेकिन ब्लॉक नंबर अभी उपलब्ध नहीं है।'
-          : 'Blockchain record is available, but the block number is not currently available.'
-      )
-  }
-</p>
+                <p className="timeline-desc">
+                  {activeRecord.blockNumber
+                    ? (
+                        primaryLang === 'hi'
+                          ? `डिजिटल लेजर ब्लॉक #${activeRecord.blockNumber} पर सत्यापित।`
+                          : `Verified on digital ledger block #${activeRecord.blockNumber}.`
+                      )
+                    : (
+                        primaryLang === 'hi'
+                          ? 'डिजिटल रिकॉर्ड निर्मित और लेजर अखंडता कमिटमेंट उपलब्ध।'
+                          : 'Digital record generated and integrity commitment available.'
+                      )
+                  }
+                </p>
               </div>
             </div>
           </div>
@@ -894,7 +901,7 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
 <div className="scorecard-val">
   {getLabName(activeRecord.lab) ||
    getLabName(activeRecord.labReport) ||
-   getLabName(activeRecord.harvests?.[0]) ||
+   (!isBatch ? getLabName(activeRecord.harvests?.[0]) : '') ||
    'Not available'}
 </div>
             </div>
@@ -909,7 +916,7 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
   {activeRecord.labUlR ||
    getLabUlr(activeRecord.lab) ||
    getLabUlr(activeRecord.labReport) ||
-   getLabUlr(activeRecord.harvests?.[0]) ||
+   (!isBatch ? getLabUlr(activeRecord.harvests?.[0]) : '') ||
    'Not available'}
 </div>            </div>
           </div>
@@ -944,10 +951,8 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
                 fontWeight: 800
               }}>
 {isTampered
-  ? '⚠️ Record Mismatch'
-  : activeRecord.blockNumber
-    ? `🟢 Block #${activeRecord.blockNumber} Confirmed`
-    : '🟢 Registry Record Verified'
+  ? 'Record Integrity: Mismatch'
+  : 'Record Integrity: Verified'
 }              </span>
               {showBlockchainDetails ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
             </div>
@@ -956,33 +961,43 @@ state: activeRecord?.state || 'Uttar Pradesh'  }]);
           {showBlockchainDetails && (
             <div className="blockchain-drawer-content" style={{ marginTop: '1.5rem', padding: '1.5rem', backgroundColor: '#FDFBF7', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
               <div className="blockchain-row">
-                <span className="blockchain-label">{primaryLang === 'hi' ? 'वर्तमान डेटा ब्लॉक हैश (SHA-256):' : 'CURRENT DATA BLOCK HASH (SHA-256):'}</span>
-                <code className="blockchain-val" style={{ color: isTampered ? 'var(--color-danger)' : 'var(--color-primary-dark)' }}>
-                  {displayHash}
+                <span className="blockchain-label">{primaryLang === 'hi' ? 'वर्तमान रिकॉर्ड हैश (Keccak-256):' : 'CURRENT RECORD HASH (Keccak-256):'}</span>
+                <code className="blockchain-val" style={{ color: isTampered ? 'var(--color-danger)' : 'var(--color-primary-dark)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                  {displayHash || (primaryLang === 'hi' ? 'उपलब्ध नहीं' : 'Not available')}
                 </code>
               </div>
 
               <div className="blockchain-row" style={{ marginTop: '1rem' }}>
-                <span className="blockchain-label">{primaryLang === 'hi' ? 'अपरिवर्तनीय लेजर रिकॉर्ड:' : 'EXPECTED COMMITMENT ON REGISTRY LEDGER:'}</span>
-                <code className="blockchain-val">
-                  {activeRecord.hash}
+                <span className="blockchain-label">{primaryLang === 'hi' ? 'अपेक्षित कमिटेड हैश (लेजर रिकॉर्ड):' : 'EXPECTED COMMITTED HASH:'}</span>
+                <code className="blockchain-val" style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                  {activeRecord.hash || (primaryLang === 'hi' ? 'उपलब्ध नहीं' : 'Not available')}
                 </code>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.25rem', borderTop: '1px dashed var(--color-border)', paddingTop: '1rem' }}>
                 <div>
-                  <span className="blockchain-label">{primaryLang === 'hi' ? 'ब्लॉक संख्या:' : 'BLOCK NUMBER:'}</span>
-<div style={{ fontWeight: 800, fontSize: '1rem' }}>
-  {activeRecord.blockNumber
-    ? `#${activeRecord.blockNumber}`
-    : 'Not available'
-  }
-</div>                </div>
+                  <span className="blockchain-label">{primaryLang === 'hi' ? 'ब्लॉकचेन ब्लॉक संख्या:' : 'BLOCKCHAIN BLOCK NUMBER:'}</span>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                    {activeRecord.blockNumber !== null && activeRecord.blockNumber !== undefined
+                      ? `#${activeRecord.blockNumber}`
+                      : (primaryLang === 'hi' ? 'उपलब्ध नहीं' : 'Not available')
+                    }
+                  </div>
+                </div>
                 <div>
-                  <span className="blockchain-label">{primaryLang === 'hi' ? 'समय:' : 'TIMESTAMP:'}</span>
-                  <div style={{ fontSize: '0.9rem' }}>{activeRecord.timestamp}</div>
+                  <span className="blockchain-label">{primaryLang === 'hi' ? 'दर्ज समय (Recorded At):' : 'RECORDED AT:'}</span>
+                  <div style={{ fontSize: '0.9rem' }}>{activeRecord.timestamp || (primaryLang === 'hi' ? 'उपलब्ध नहीं' : 'Not available')}</div>
                 </div>
               </div>
+
+              {activeRecord.txRef && (
+                <div className="blockchain-row" style={{ marginTop: '1rem', borderTop: '1px dashed var(--color-border)', paddingTop: '1rem' }}>
+                  <span className="blockchain-label">{primaryLang === 'hi' ? 'ब्लॉकचेन लेनदेन (BLOCKCHAIN TRANSACTION):' : 'BLOCKCHAIN TRANSACTION:'}</span>
+                  <code className="blockchain-val" style={{ color: 'var(--color-text-main)', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                    {activeRecord.txRef}
+                  </code>
+                </div>
+              )}
             </div>
           )}
         </section>

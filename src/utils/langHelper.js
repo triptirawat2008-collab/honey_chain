@@ -134,12 +134,12 @@ export const TRANSLATIONS = {
     hi: "सरकारी लैब जाँच और किसान स्रोत प्रमाणित।"
   },
   statusTamperedTitle: {
-    en: "⚠️ Record Mismatch Detected",
-    hi: "⚠️ डेटा में अंतर — रिकॉर्ड मेल नहीं खाता"
+    en: "⚠️ Record Integrity Mismatch",
+    hi: "⚠️ रिकॉर्ड अखंडता में अंतर (Record Integrity Mismatch)"
   },
   statusTamperedSub: {
-    en: "The record values for this bottle do not match the official lab register. Please inspect the jar seal.",
-    hi: "इस बोतल का डेटा सरकारी लैब रिकॉर्ड से मेल नहीं खा रहा है। मिलावट का संदेह हो सकता है।"
+    en: "Stored digital record does not match the ledger registry. The stored record values may have been changed.",
+    hi: "डिजिटल रिकॉर्ड लेजर रजिस्ट्री से मेल नहीं खा रहा है। संग्रहीत रिकॉर्ड में बदलाव हो सकता है।"
   },
   verifiedTts: {
     en: "Verification successful. This honey is verified with authentic beekeeper origin and passed all official lab quality tests.",

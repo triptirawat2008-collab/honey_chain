@@ -62,9 +62,9 @@ export default function CompanyDashboard({
   }
 
   try {
-    const response = await fetch(
-      `/api/harvests/verify/${encodeURIComponent(id)}`
-    );
+   const response = await fetch(
+  `http://localhost:5000/api/harvests/verify/${encodeURIComponent(id)}`
+);
 
     const result = await response.json();
 
@@ -95,7 +95,7 @@ export default function CompanyDashboard({
     setUlrVerificationMessage('');
 
     try {
-      const response = await fetch('/api/verify-ulr', {
+      const response = await fetch('http://localhost:5000/api/verify-ulr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ulrNumber: trimmedUlr })
@@ -124,114 +124,262 @@ export default function CompanyDashboard({
 
   // Run mock verification workflow
 const handleCreateBatch = async (e) => {
-      e.preventDefault();
-    if (!productName || !batchQuantity) {
-      alert("Please fill in the product name and batch quantity.");
-      return;
-    }
+  e.preventDefault();
 
-    if (!verifiedUlrNumber) {
-      alert('Please verify the lab ULR before creating the batch.');
-      setCurrentStep(3);
-      setVerificationStep(0);
-      return;
-    }
-    
-    // Begin step-by-step animation
-    setCurrentStep(4);
-    setVerificationStep(1);
+  if (!productName || !batchQuantity) {
+    alert("Please fill in the product name and batch quantity.");
+    return;
+  }
+
+  if (!verifiedUlrNumber) {
+    alert("Please verify the lab ULR before creating the batch.");
+    setCurrentStep(3);
+    setVerificationStep(0);
+    return;
+  }
+
+  // Begin step-by-step animation
+  setCurrentStep(4);
+  setVerificationStep(1);
+
+  setTimeout(() => {
+    setVerificationStep(2);
 
     setTimeout(() => {
-      setVerificationStep(2);
-      
-      setTimeout(() => {
-        setVerificationStep(3);
-        
+      setVerificationStep(3);
+
       setTimeout(async () => {
+        try {
           setVerificationStep(4);
-          
+
           // Generate unique batch ID
           const bCount = batches.length + 1;
-          const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-          const licenseSuffix = user.licenseNumber.substring(user.licenseNumber.lastIndexOf('-') + 1);
+          const dateStr = new Date()
+            .toISOString()
+            .split("T")[0]
+            .replace(/-/g, "");
+
+          const licenseSuffix = user.licenseNumber.substring(
+            user.licenseNumber.lastIndexOf("-") + 1
+          );
+
           const newBatchId = `BT-${licenseSuffix}-${dateStr}-0${bCount}`;
 
-          const rawString = `${newBatchId}|${user.companyName}|${selectedHarvestIds.join(',')}|${productName}`;
-          const hashVal = generateMockHash(rawString);
+          /*
+           * ============================================================
+           * STEP 1: Save batch in PostgreSQL
+           * ============================================================
+           */
+
+          const batchPayload = {
+            batch_id: newBatchId,
+            company_license: user.licenseNumber,
+            product_name: productName,
+            quantity_kg: parseFloat(batchQuantity) || 500,
+            final_lab_ulr: verifiedUlrNumber,
+            ulr_status: "Verified",
+            manual_report_certified: !!labReportFile,
+            is_lab_certified: true,
+            harvest_ids: selectedHarvestIds
+          };
+
+          const dbResponse = await fetch("/api/batches", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(batchPayload)
+          });
+
+          const dbResult = await dbResponse.json();
+
+          if (!dbResponse.ok || !dbResult.success) {
+            console.error("Failed to save batch in PostgreSQL:", dbResult);
+
+            alert(
+              "Database Error: Could not save the batch.\n\n" +
+              (dbResult.error || dbResult.message || "Unknown database error")
+            );
+
+            setCurrentStep(3);
+            setVerificationStep(0);
+            return;
+          }
+
+          console.log("Batch saved in PostgreSQL:", dbResult);
+
+          /*
+           * ============================================================
+           * STEP 2: Commit the SAME batch to blockchain
+           * ============================================================
+           */
+
+          const blockchainPayload = {
+            batchId: newBatchId,
+            companyLicense: user.licenseNumber,
+            productName: productName,
+            quantityKg: parseFloat(batchQuantity) || 500,
+            finalLabUlr: verifiedUlrNumber,
+            ulrStatus: "Verified",
+            manualReportStatus: labReportFile
+              ? "Verified"
+              : "",
+            isLabCertified: true,
+            manualReportCertified: !!labReportFile,
+            harvestIds: selectedHarvestIds
+          };
+
+          console.log(
+            "Sending batch to blockchain:",
+            blockchainPayload
+          );
+
+          const blockchainResponse = await fetch(
+            "/api/blockchain/batch",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(blockchainPayload)
+            }
+          );
+
+          const blockchainResult =
+            await blockchainResponse.json();
+
+          if (
+            !blockchainResponse.ok ||
+            !blockchainResult.success
+          ) {
+            console.error(
+              "Blockchain batch registration failed:",
+              blockchainResult
+            );
+
+            alert(
+              "Blockchain Error: The batch was saved in the database, but blockchain registration failed.\n\n" +
+              (blockchainResult.message ||
+                blockchainResult.error ||
+                "Unknown blockchain error")
+            );
+
+            setCurrentStep(3);
+            setVerificationStep(0);
+            return;
+          }
+
+          console.log(
+            "Batch successfully registered on blockchain:",
+            blockchainResult
+          );
+
+          /*
+           * ============================================================
+           * STEP 3: Use REAL blockchain values
+           * ============================================================
+           */
+
+          const realRecordHash =
+            blockchainResult.recordHash || "";
+
+          const realBlockNumber =
+            blockchainResult.blockNumber ?? null;
+
+          const realTransactionHash =
+            blockchainResult.transactionHash || "";
 
           const newBatch = {
             batchId: newBatchId,
             companyName: user.companyName,
             licenseNumber: user.licenseNumber,
-            fssaiNumber: user.fssaiNumber || "FSSAI 10021051000124",
+            fssaiNumber:
+              user.fssaiNumber ||
+              "FSSAI 10021051000124",
+
             productName: productName,
             productNameHi: productName,
+
             batchQuantity: batchQuantity,
-            processingInfo: processingInfo || "Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.",
-            createdDate: new Date().toISOString().split('T')[0],
+
+            processingInfo:
+              processingInfo ||
+              "Cold-filtered at <40°C, zero additives, moisture standardized to 17.4%.",
+
+            createdDate: new Date()
+              .toISOString()
+              .split("T")[0],
+
             labName: labName,
             labReference: verifiedUlrNumber,
-            labReportName: labReportFile ? labReportFile.name : "batch_report_sih_demo.pdf",
+
+            labReportName: labReportFile
+              ? labReportFile.name
+              : "batch_report_sih_demo.pdf",
+
             labStatus: "Verified",
             blockchainStatus: "Verified",
+
             sourceHarvestIds: selectedHarvestIds,
-            blockNumber: 148922,
-            hash: hashVal,
-            previousHash: batches[0]?.hash || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            txRef: "0x" + generateMockHash(hashVal).substring(0, 60),
+
+            // REAL blockchain values
+            blockNumber: realBlockNumber,
+            hash: realRecordHash,
+            txRef: realTransactionHash,
+
+            // Keep previousHash empty because we are not
+            // generating a fake previous blockchain hash.
+            previousHash: "",
+
             timestamp: new Date().toISOString()
           };
-          const batchPayload = {
-  batch_id: newBatchId,
-  company_license: user.licenseNumber,
-  product_name: productName,
-  quantity_kg: parseFloat(batchQuantity) || 500,
-  final_lab_ulr: verifiedUlrNumber,
-  ulr_status: "Verified",
-  manual_report_certified: !!labReportFile,
-  is_lab_certified: true,
-  harvest_ids: selectedHarvestIds
-};
 
-const response = await fetch('/api/batches', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(batchPayload)
-});
-
-const result = await response.json();
-
-if (!response.ok || !result.success) {
-  console.error("Failed to save batch:", result);
-
-  alert(
-    "Database Error: Could not save the batch.\n\n" +
-    (result.error || "Unknown database error")
-  );
-
-  setCurrentStep(3);
-  setVerificationStep(0);
-  return;
-}
+          /*
+           * ============================================================
+           * STEP 4: Update frontend state
+           * ============================================================
+           */
 
           setBatches([newBatch, ...batches]);
           setCreatedBatchId(newBatchId);
 
-          // Log in audit history
+          /*
+           * ============================================================
+           * STEP 5: Existing audit history
+           * ============================================================
+           */
+
           const newHistoryItem = {
             id: `H-${Date.now()}`,
             timestamp: new Date().toISOString(),
             type: "Batch Generated",
             details: `Created Batch ${newBatchId} containing ${selectedHarvestIds.length} source harvests for product: ${productName}.`
           };
-          setHistory([newHistoryItem, ...history]);
 
-        }, 900);
+          setHistory([
+            newHistoryItem,
+            ...history
+          ]);
+
+        } catch (error) {
+          console.error(
+            "Batch creation error:",
+            error
+          );
+
+          alert(
+            "Could not complete batch creation.\n\n" +
+            (error.message ||
+              "Please check the backend and blockchain connection.")
+          );
+
+          setCurrentStep(3);
+          setVerificationStep(0);
+        }
       }, 900);
     }, 900);
-  };
+  }, 900);
+};
 
 const resetBatchForm = () => {
   setCurrentStep(1);
@@ -273,6 +421,40 @@ const uniqueBeekeepers = new Set(
     h.beekeeperName.toLowerCase().includes(harvestSearch.toLowerCase()) ||
     h.flowerSources.join(' ').toLowerCase().includes(harvestSearch.toLowerCase())
   );
+  const getBlockchainBatchData = async (batchId) => {
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/blockchain/batch/${encodeURIComponent(batchId)}`
+    );
+
+    if (!response.ok) {
+      return {
+        blockNumber: null,
+        hash: "",
+        txRef: ""
+      };
+    }
+
+    const result = await response.json();
+
+    return {
+      blockNumber: result.blockNumber ?? null,
+      hash: result.recordHash || "",
+      txRef: result.transactionHash || ""
+    };
+  } catch (error) {
+    console.error(
+      `Could not load blockchain data for ${batchId}:`,
+      error
+    );
+
+    return {
+      blockNumber: null,
+      hash: "",
+      txRef: ""
+    };
+  }
+};
 useEffect(() => {
   const loadCompanyBatches = async () => {
     if (!user?.licenseNumber) return;
@@ -971,6 +1153,103 @@ useEffect(() => {
                           <span>{primaryLang === 'hi' ? 'बोतल लेबल्स के लिए Master QR प्रिंट करें' : 'Print Master QR Labels for Jars'}</span>
                         </button>
                       </div>
+
+                      {/* Blockchain Record Section */}
+                      {(() => {
+                        const currentBatch = batches.find(b => b.batchId === createdBatchId) || {};
+                        const displayStatus = currentBatch.blockchainStatus || 'Verified';
+                        const displayBlockNumber = currentBatch.blockNumber !== null && currentBatch.blockNumber !== undefined
+                          ? `#${currentBatch.blockNumber}`
+                          : (primaryLang === 'hi' ? 'वर्तमान प्रोटोटाइप में उपलब्ध नहीं' : 'Not available in current prototype');
+                        const displayRecordHash = currentBatch.hash || 'Not available';
+                        const displayTxHash = currentBatch.txRef || 'Not available';
+
+                        return (
+                          <div 
+                            className="table-card" 
+                            style={{ 
+                              maxWidth: '540px', 
+                              margin: '1.5rem auto 0 auto', 
+                              textAlign: 'left',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: '#FFFFFF',
+                              boxShadow: 'var(--shadow-sm)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem' }}>
+                              <ShieldCheck size={20} style={{ color: 'var(--color-primary-dark)' }} />
+                              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
+                                {primaryLang === 'hi' ? 'ब्लॉकचेन रिकॉर्ड (Blockchain Record)' : 'Blockchain Record'}
+                              </h3>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                              {/* 1. Blockchain Status */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                  {primaryLang === 'hi' ? 'ब्लॉकचेन स्थिति:' : 'Blockchain Status:'}
+                                </span>
+                                <span className="badge-active" style={{ backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
+                                  🟢 {displayStatus}
+                                </span>
+                              </div>
+
+                              {/* 2. Block Number */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                  {primaryLang === 'hi' ? 'ब्लॉक संख्या:' : 'Block Number:'}
+                                </span>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.95rem', color: 'var(--color-text-main)' }}>
+                                  {displayBlockNumber}
+                                </span>
+                              </div>
+
+                              {/* 3. Record Hash */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.6rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                  {primaryLang === 'hi' ? 'रिकॉर्ड हैश (Record Hash):' : 'Record Hash:'}
+                                </span>
+                                <code style={{ 
+                                  fontFamily: 'monospace', 
+                                  fontSize: '0.82rem', 
+                                  backgroundColor: '#FDFBF7', 
+                                  padding: '0.4rem 0.6rem', 
+                                  borderRadius: 'var(--radius-sm)', 
+                                  border: '1px solid var(--color-border)', 
+                                  wordBreak: 'break-all', 
+                                  overflowWrap: 'anywhere',
+                                  color: 'var(--color-primary-dark)',
+                                  lineHeight: 1.4
+                                }}>
+                                  {displayRecordHash}
+                                </code>
+                              </div>
+
+                              {/* 4. Transaction Hash */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.6rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                  {primaryLang === 'hi' ? 'लेनदेन हैश (Transaction Hash):' : 'Transaction Hash:'}
+                                </span>
+                                <code style={{ 
+                                  fontFamily: 'monospace', 
+                                  fontSize: '0.82rem', 
+                                  backgroundColor: '#FDFBF7', 
+                                  padding: '0.4rem 0.6rem', 
+                                  borderRadius: 'var(--radius-sm)', 
+                                  border: '1px solid var(--color-border)', 
+                                  wordBreak: 'break-all', 
+                                  overflowWrap: 'anywhere',
+                                  color: 'var(--color-text-main)',
+                                  lineHeight: 1.4
+                                }}>
+                                  {displayTxHash}
+                                </code>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem', flexWrap: 'wrap' }}>
                         <button 

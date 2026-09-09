@@ -5,14 +5,16 @@ import {
   Activity, Check, FileText, Upload, Calendar, X,
   Camera, Mic, MicOff, Volume2, Sparkles, QrCode, ArrowRight,
   ArrowLeft, CheckCircle2, AlertTriangle, Printer,
-  ChevronRight, RefreshCw
+  ChevronRight, RefreshCw, Thermometer, Droplets, Radio, Eye
 } from 'lucide-react';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
 import SpeakerButton from '../components/SpeakerButton';
+import { INITIAL_IOT_READINGS } from '../data/mockData';
+import { evaluateEnvironmentalStatus, getSensorForLocation, IOT_THRESHOLDS } from '../utils/iotConfig';
 
 export default function BeekeeperDashboard({ 
   user, setView, harvests, setHarvests, apiaries, setApiaries, 
-  healthLogs, setHealthLogs, reminders, setReminders, history, setHistory,
+  healthLogs, setHealthLogs, reminders = [], setReminders, history, setHistory,
   setActiveTraceId, primaryLang = 'hi'
 }) {
   // Mobile / Sub-tab navigation: 'overview', 'harvests', 'create-harvest', 'apiaries', 'health', 'reminders'
@@ -61,10 +63,34 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceRecorded, setVoiceRecorded] = useState(false);
 
-  // Add Reminder state
+  // Reminders State
   const [newRemTitle, setNewRemTitle] = useState('');
   const [newRemDate, setNewRemDate] = useState('');
   const [newRemNotes, setNewRemNotes] = useState('');
+
+  // IoT Environmental Monitoring State
+  const [iotReadings, setIotReadings] = useState(INITIAL_IOT_READINGS);
+  const [selectedIotLocationId, setSelectedIotLocationId] = useState('LOC-001');
+  const [healthLogFilter, setHealthLogFilter] = useState('all'); // 'all' (combined timeline), 'manual', 'iot'
+
+  // Fetch IoT readings from backend API (falls back gracefully to INITIAL_IOT_READINGS)
+  useEffect(() => {
+    const fetchIotReadings = async () => {
+      try {
+        const response = await fetch('/api/iot/readings');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+            setIotReadings(result.data);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch IoT readings from API, using seeded values:', err);
+      }
+    };
+
+    fetchIotReadings();
+  }, []);
 
   const persistReminderStorage = (nextReminders) => {
     if (!user?.beekeeperId) return;
@@ -948,6 +974,132 @@ const handleExecuteMove = () => {
                   </div>
                 </div>
               </div>
+
+              {/* 5. IOT ENVIRONMENTAL MONITORING WIDGET (Overview Section) */}
+              {(() => {
+                const targetLocId = selectedIotLocationId || apiaries[0]?.locationId || 'LOC-001';
+                const activeApiary = apiaries.find(a => a.locationId === targetLocId) || apiaries[0] || { name: 'Apiary 1', locationId: 'LOC-001' };
+                const locReadings = iotReadings.filter(r => (r.locationId || r.location_id) === targetLocId);
+                const latestReading = locReadings[0] || {
+                  temperature: 31.4,
+                  humidity: 68,
+                  timestamp: new Date().toISOString(),
+                  sensorId: getSensorForLocation(targetLocId).sensorId
+                };
+                const envStatus = evaluateEnvironmentalStatus(latestReading.temperature, latestReading.humidity);
+                const sensorMeta = getSensorForLocation(targetLocId);
+                const readingTime = new Date(latestReading.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                  <div className="iot-monitoring-section">
+                    <div className="iot-section-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <Radio size={20} style={{ color: 'var(--color-primary-dark)' }} />
+                        <div>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                            {primaryLang === 'hi' ? 'पर्यावरण एवं सेंसर निगरानी (IoT Environmental Monitoring)' : 'Environmental Monitoring'}
+                          </h3>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>
+                            {primaryLang === 'hi' ? 'हवा का तापमान व आर्द्रता — स्वचालित सेंसर डेटा' : 'Live temperature & humidity telemetry from apiary sensor'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {apiaries.length > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                            {primaryLang === 'hi' ? 'स्थान:' : 'Site:'}
+                          </span>
+                          <select
+                            className="form-input"
+                            style={{ height: '36px', padding: '0.2rem 0.6rem', fontSize: '0.85rem' }}
+                            value={targetLocId}
+                            onChange={(e) => setSelectedIotLocationId(e.target.value)}
+                          >
+                            {apiaries.map(a => (
+                              <option key={a.locationId} value={a.locationId}>{a.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="iot-metrics-grid">
+                      {/* Temperature Box */}
+                      <div className="iot-metric-box">
+                        <div className="iot-metric-header">
+                          <span className="iot-metric-label">{primaryLang === 'hi' ? 'तापमान (Temperature)' : 'Temperature'}</span>
+                          <Thermometer size={16} style={{ color: 'var(--color-primary-dark)' }} />
+                        </div>
+                        <div className="iot-metric-val">{Number(latestReading.temperature).toFixed(1)} °C</div>
+                        <div style={{ marginTop: '0.4rem' }}>
+                          <span className={`iot-status-pill ${Number(latestReading.temperature) >= IOT_THRESHOLDS.temperature.min && Number(latestReading.temperature) <= IOT_THRESHOLDS.temperature.max ? 'iot-status-normal' : 'iot-status-warning'}`}>
+                            {Number(latestReading.temperature) >= IOT_THRESHOLDS.temperature.min && Number(latestReading.temperature) <= IOT_THRESHOLDS.temperature.max
+                              ? (primaryLang === 'hi' ? '🟢 सामान्य (Normal)' : 'Normal')
+                              : (primaryLang === 'hi' ? '🟡 चेतावनी (Warning)' : 'Warning')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Humidity Box */}
+                      <div className="iot-metric-box">
+                        <div className="iot-metric-header">
+                          <span className="iot-metric-label">{primaryLang === 'hi' ? 'आर्द्रता (Humidity)' : 'Humidity'}</span>
+                          <Droplets size={16} style={{ color: 'var(--color-secondary)' }} />
+                        </div>
+                        <div className="iot-metric-val">{Math.round(latestReading.humidity)}%</div>
+                        <div style={{ marginTop: '0.4rem' }}>
+                          <span className={`iot-status-pill ${Number(latestReading.humidity) >= IOT_THRESHOLDS.humidity.min && Number(latestReading.humidity) <= IOT_THRESHOLDS.humidity.max ? 'iot-status-normal' : 'iot-status-warning'}`}>
+                            {Number(latestReading.humidity) >= IOT_THRESHOLDS.humidity.min && Number(latestReading.humidity) <= IOT_THRESHOLDS.humidity.max
+                              ? (primaryLang === 'hi' ? '🟢 सामान्य (Normal)' : 'Normal')
+                              : (primaryLang === 'hi' ? '🟡 चेतावनी (Warning)' : 'Warning')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Sensor & Location Info */}
+                      <div className="iot-metric-box">
+                        <div className="iot-metric-header">
+                          <span className="iot-metric-label">{primaryLang === 'hi' ? 'सेंसर पहचान' : 'Sensor'}</span>
+                          <Radio size={16} style={{ color: '#6366F1' }} />
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-text-main)', marginTop: '0.2rem' }}>
+                          {latestReading.sensorId || sensorMeta.sensorId}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginTop: '0.35rem' }}>
+                          {sensorMeta.model}
+                        </div>
+                      </div>
+
+                      {/* Apiary & Update Status */}
+                      <div className="iot-metric-box">
+                        <div className="iot-metric-header">
+                          <span className="iot-metric-label">{primaryLang === 'hi' ? 'स्थान एवं समय' : 'Apiary'}</span>
+                          <Compass size={16} style={{ color: 'var(--color-secondary)' }} />
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--color-text-main)', marginTop: '0.2rem' }}>
+                          {activeApiary.name}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginTop: '0.35rem' }}>
+                          {primaryLang === 'hi' ? `अंतिम अपडेट: ${readingTime}` : `Last updated: ${readingTime}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="iot-meta-row">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="iot-source-badge badge-source-iot">
+                          📡 {primaryLang === 'hi' ? 'IoT स्वचालित टेलीमेट्री' : 'IoT Sensor Telemetry'}
+                        </span>
+                        <span>{primaryLang === 'hi' ? `स्थिति: ${envStatus.statusHi}` : `Environmental Status: ${envStatus.status}`}</span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
+                        {primaryLang === 'hi' ? 'मानक दायरा: तापमान 30°C - 36°C | नमी 50% - 70%' : 'Configured Range: 30°C - 36°C | 50% - 70% RH'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Recent Harvests Table / Card List */}
               <div className="table-card" style={{ marginTop: '2rem' }}>
@@ -1863,48 +2015,263 @@ const handleExecuteMove = () => {
                 </form>
               </div>
 
-              {/* Visual History Timeline */}
+              {/* Visual History Timeline with Combined, Manual & IoT Views */}
               <div className="table-card" style={{ padding: '1.5rem', margin: 0 }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
-                  {primaryLang === 'hi' ? 'स्वास्थ्य निरीक्षण इतिहास' : 'Inspection Timeline'}
-                </h3>
-                
-                <div className="log-timeline">
-                  {healthLogs.map(log => (
-                    <div key={log.id} className={`log-item ${
-                      log.status === 'Healthy' ? 'status-healthy' : 
-                      log.status === 'Needs Attention' ? 'status-needs-attention' : 'status-critical'
-                    }`}>
-                      <div className="log-meta">
-                        <strong style={{ color: 'var(--color-text-main)', fontSize: '0.95rem' }}>
-                          {log.apiaryName}
-                        </strong>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--color-text-light)' }}>{log.date}</span>
-                      </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                      {healthLogFilter === 'all'
+                        ? (primaryLang === 'hi' ? 'समग्र गतिविधि समयरेखा (Combined Activity Timeline)' : 'Combined Activity Timeline')
+                        : healthLogFilter === 'manual'
+                          ? (primaryLang === 'hi' ? 'किसान निरीक्षण रिकॉर्ड (Manual Health Logs)' : 'Manual Health Logs')
+                          : (primaryLang === 'hi' ? 'स्वचालित सेंसर लॉग (IoT Environmental Logs)' : 'IoT Environmental Logs')
+                      }
+                    </h3>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>
+                      {healthLogFilter === 'all'
+                        ? (primaryLang === 'hi' ? 'शारीरिक निरीक्षण एवं स्वचालित IoT सेंसर रीडिंग का संयुक्त दृश्य' : 'Unified stream of personal observations and automatic sensor readings')
+                        : healthLogFilter === 'manual'
+                          ? (primaryLang === 'hi' ? 'किसान द्वारा स्वयं दर्ज किए गए स्वास्थ्य व पेटी निरीक्षण' : 'Field observations recorded directly by the beekeeper')
+                          : (primaryLang === 'hi' ? 'तापमान व नमी सेंसर द्वारा स्वतः दर्ज पर्यावरण रिकॉर्ड' : 'Telemetry recorded automatically from hive sensors')
+                      }
+                    </span>
+                  </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.35rem 0' }}>
-                        <span className={`badge-active ${
-                          log.status === 'Healthy' ? 'status-healthy' : 'badge-expired'
-                        }`} style={{
-                          backgroundColor: log.status === 'Healthy' ? '#DCFCE7' : '#FEF3C7',
-                          color: log.status === 'Healthy' ? '#15803D' : '#D97706',
-                          fontSize: '0.78rem'
-                        }}>
-                          {log.status === 'Healthy' ? '🟢 Healthy / स्वस्थ' : '🟡 Needs Attention'}
-                        </span>
-                        {log.affectedColonies > 0 && (
-                          <span style={{ fontSize: '0.78rem', color: 'var(--color-danger)', fontWeight: 600 }}>
-                            ({log.affectedColonies} boxes)
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="log-notes" style={{ margin: 0, fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
-                        {log.notes}
-                      </p>
-                    </div>
-                  ))}
+                  {/* Filter Toggle */}
+                  <div className="health-view-toggle-bar">
+                    <button
+                      type="button"
+                      className={`health-view-btn ${healthLogFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => setHealthLogFilter('all')}
+                    >
+                      <Layers size={14} />
+                      <span>{primaryLang === 'hi' ? 'संयुक्त दृश्य (All)' : 'All Activity'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`health-view-btn ${healthLogFilter === 'manual' ? 'active' : ''}`}
+                      onClick={() => setHealthLogFilter('manual')}
+                    >
+                      🧑‍🌾 <span>{primaryLang === 'hi' ? 'किसान निरीक्षण (Manual)' : 'Manual Logs'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`health-view-btn ${healthLogFilter === 'iot' ? 'active' : ''}`}
+                      onClick={() => setHealthLogFilter('iot')}
+                    >
+                      <Radio size={14} />
+                      <span>{primaryLang === 'hi' ? 'IoT सेंसर (Automatic)' : 'IoT Telemetry'}</span>
+                    </button>
+                  </div>
                 </div>
+                
+                {/* 1. IOT SPECIFIC TABLE VIEW */}
+                {healthLogFilter === 'iot' ? (
+                  <div className="table-responsive">
+                    <table className="custom-table">
+                      <thead>
+                        <tr>
+                          <th>{primaryLang === 'hi' ? 'समय / तारीख' : 'Time & Date'}</th>
+                          <th>{primaryLang === 'hi' ? 'सेंसर आईडी' : 'Sensor ID'}</th>
+                          <th>{primaryLang === 'hi' ? 'स्थान' : 'Apiary Site'}</th>
+                          <th>{primaryLang === 'hi' ? 'तापमान' : 'Temperature'}</th>
+                          <th>{primaryLang === 'hi' ? 'आर्द्रता' : 'Humidity'}</th>
+                          <th>{primaryLang === 'hi' ? 'पर्यावरण स्थिति' : 'Environmental Status'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {iotReadings.map((reading, idx) => {
+                          const ap = apiaries.find(a => a.locationId === (reading.locationId || reading.location_id));
+                          const apName = ap?.name || `Apiary ${reading.locationId || reading.location_id}`;
+                          const statusInfo = evaluateEnvironmentalStatus(reading.temperature, reading.humidity);
+                          const dateObj = new Date(reading.timestamp);
+                          const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          const dateStr = dateObj.toISOString().split('T')[0];
+
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                <div><strong>{timeStr}</strong></div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>{dateStr}</span>
+                              </td>
+                              <td>
+                                <strong style={{ fontFamily: 'monospace', color: '#4338CA' }}>
+                                  {reading.sensorId || reading.sensor_id}
+                                </strong>
+                              </td>
+                              <td>{apName}</td>
+                              <td>
+                                <strong style={{ color: Number(reading.temperature) >= IOT_THRESHOLDS.temperature.min && Number(reading.temperature) <= IOT_THRESHOLDS.temperature.max ? 'var(--color-text-main)' : 'var(--color-warning)' }}>
+                                  {Number(reading.temperature).toFixed(1)} °C
+                                </strong>
+                              </td>
+                              <td>
+                                <strong style={{ color: Number(reading.humidity) >= IOT_THRESHOLDS.humidity.min && Number(reading.humidity) <= IOT_THRESHOLDS.humidity.max ? 'var(--color-text-main)' : 'var(--color-warning)' }}>
+                                  {Math.round(reading.humidity)}%
+                                </strong>
+                              </td>
+                              <td>
+                                <span className={`iot-status-pill ${!statusInfo.isWarning ? 'iot-status-normal' : 'iot-status-warning'}`}>
+                                  {!statusInfo.isWarning
+                                    ? (primaryLang === 'hi' ? '🟢 सामान्य' : 'Normal')
+                                    : (primaryLang === 'hi' ? '🟡 चेतावनी' : 'Warning')}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'var(--color-text-light)', textAlign: 'right' }}>
+                      ℹ️ {primaryLang === 'hi' ? 'ये रिकॉर्ड सेंसर द्वारा स्वचालित रूप से एकत्रित किए जाते हैं।' : 'These records are automatically generated from sensor readings.'}
+                    </div>
+                  </div>
+                ) : (
+                  /* 2. COMBINED OR MANUAL LOG TIMELINE */
+                  <div className="log-timeline">
+                    {(() => {
+                      // Normalize manual items
+                      const manualTimelineItems = healthLogs.map(log => ({
+                        type: 'manual',
+                        key: `manual-${log.id}`,
+                        timestamp: log.inspectionDate || log.date,
+                        dateLabel: log.date,
+                        title: log.apiaryName,
+                        status: log.status,
+                        statusHi: log.statusHi,
+                        affectedColonies: log.affectedColonies,
+                        notes: log.notes,
+                        isAudio: log.audioNote
+                      }));
+
+                      // Normalize IoT items
+                      const iotTimelineItems = iotReadings.map((reading, idx) => {
+                        const ap = apiaries.find(a => a.locationId === (reading.locationId || reading.location_id));
+                        const apName = ap?.name || `Apiary ${reading.locationId || reading.location_id}`;
+                        const statusInfo = evaluateEnvironmentalStatus(reading.temperature, reading.humidity);
+                        const dateObj = new Date(reading.timestamp);
+                        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = dateObj.toISOString().split('T')[0];
+
+                        return {
+                          type: 'iot',
+                          key: `iot-${idx}`,
+                          timestamp: reading.timestamp,
+                          dateLabel: `${dateStr} • ${timeStr}`,
+                          title: apName,
+                          sensorId: reading.sensorId || reading.sensor_id,
+                          temperature: reading.temperature,
+                          humidity: reading.humidity,
+                          status: statusInfo.status,
+                          statusHi: statusInfo.statusHi,
+                          isWarning: statusInfo.isWarning,
+                          detail: statusInfo.detail,
+                          notes: `Temperature ${Number(reading.temperature).toFixed(1)} °C, Humidity ${Math.round(reading.humidity)}% — ${statusInfo.status}`
+                        };
+                      });
+
+                      const displayedItems = healthLogFilter === 'manual'
+                        ? manualTimelineItems
+                        : [...manualTimelineItems, ...iotTimelineItems].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                      if (displayedItems.length === 0) {
+                        return (
+                          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                            {primaryLang === 'hi' ? 'कोई रिकॉर्ड उपलब्ध नहीं है।' : 'No records found.'}
+                          </div>
+                        );
+                      }
+
+                      return displayedItems.map(item => {
+                        if (item.type === 'manual') {
+                          return (
+                            <div key={item.key} className={`log-item ${
+                              item.status === 'Healthy' ? 'status-healthy' : 
+                              item.status === 'Needs Attention' ? 'status-needs-attention' : 'status-critical'
+                            }`}>
+                              <div className="log-meta">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span className="iot-source-badge badge-source-manual">
+                                    🧑‍🌾 {primaryLang === 'hi' ? 'किसान निरीक्षण' : 'Manual Inspection'}
+                                  </span>
+                                  <strong style={{ color: 'var(--color-text-main)', fontSize: '0.95rem' }}>
+                                    {item.title}
+                                  </strong>
+                                </div>
+                                <span style={{ fontSize: '0.82rem', color: 'var(--color-text-light)' }}>{item.dateLabel}</span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.35rem 0' }}>
+                                <span className={`badge-active ${
+                                  item.status === 'Healthy' ? 'status-healthy' : 'badge-expired'
+                                }`} style={{
+                                  backgroundColor: item.status === 'Healthy' ? '#DCFCE7' : '#FEF3C7',
+                                  color: item.status === 'Healthy' ? '#15803D' : '#D97706',
+                                  fontSize: '0.78rem'
+                                }}>
+                                  {item.status === 'Healthy' ? '🟢 Healthy / स्वस्थ' : '🟡 Needs Attention'}
+                                </span>
+                                {item.affectedColonies > 0 && (
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--color-danger)', fontWeight: 600 }}>
+                                    ({item.affectedColonies} boxes)
+                                  </span>
+                                )}
+                                {item.isAudio && (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-dark)' }}>
+                                    🎙️ Voice note
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="log-notes" style={{ margin: 0, fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
+                                {item.notes}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        // IoT Item
+                        return (
+                          <div key={item.key} className="log-item log-item-iot">
+                            <div className="log-meta">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="iot-source-badge badge-source-iot">
+                                  📡 {primaryLang === 'hi' ? 'IoT सेंसर रीडिंग' : 'IoT Sensor Reading'}
+                                </span>
+                                <strong style={{ color: 'var(--color-text-main)', fontSize: '0.95rem' }}>
+                                  {item.title}
+                                </strong>
+                                <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#6366F1' }}>
+                                  [{item.sensorId}]
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--color-text-light)' }}>{item.dateLabel}</span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.35rem 0' }}>
+                              <span className={`iot-status-pill ${!item.isWarning ? 'iot-status-normal' : 'iot-status-warning'}`}>
+                                {!item.isWarning ? '🟢 Normal' : '🟡 Warning'}
+                              </span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                                🌡️ {Number(item.temperature).toFixed(1)} °C
+                              </span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                                💧 {Math.round(item.humidity)}%
+                              </span>
+                            </div>
+
+                            <p className="log-notes" style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                              {primaryLang === 'hi'
+                                ? `स्वचालित टेलीमेट्री: तापमान ${Number(item.temperature).toFixed(1)} °C, नमी ${Math.round(item.humidity)}% — ${item.statusHi}`
+                                : `Automatic telemetry: Temperature ${Number(item.temperature).toFixed(1)} °C, Humidity ${Math.round(item.humidity)}% — ${item.status}`
+                              }
+                            </p>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -347,6 +347,44 @@ export const INITIAL_HISTORY = [
   }
 ];
 
+export const INITIAL_IOT_READINGS = [
+  {
+    sensorId: "TEMP-HUM-001",
+    locationId: "LOC-001",
+    timestamp: "2026-09-09T18:30:00Z",
+    temperature: 31.4,
+    humidity: 68
+  },
+  {
+    sensorId: "TEMP-HUM-001",
+    locationId: "LOC-001",
+    timestamp: "2026-09-09T18:20:00Z",
+    temperature: 31.1,
+    humidity: 67
+  },
+  {
+    sensorId: "TEMP-HUM-001",
+    locationId: "LOC-001",
+    timestamp: "2026-09-09T18:10:00Z",
+    temperature: 30.8,
+    humidity: 66
+  },
+  {
+    sensorId: "TEMP-HUM-002",
+    locationId: "LOC-002",
+    timestamp: "2026-09-09T18:30:00Z",
+    temperature: 32.2,
+    humidity: 64
+  },
+  {
+    sensorId: "TEMP-HUM-002",
+    locationId: "LOC-002",
+    timestamp: "2026-09-09T18:15:00Z",
+    temperature: 32.0,
+    humidity: 65
+  }
+];
+
 // Helper to simulate cryptographic SHA-256 hash generation
 export function generateMockHash(inputString) {
   let hash = 0;
