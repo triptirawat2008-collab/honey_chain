@@ -63,6 +63,13 @@ const [ulrStatus, setUlrStatus] = useState(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceRecorded, setVoiceRecorded] = useState(false);
 
+  // AI Bee Disease Detection State
+const [aiImage, setAiImage] = useState(null);
+const [aiPreview, setAiPreview] = useState('');
+const [aiResult, setAiResult] = useState(null);
+const [aiLoading, setAiLoading] = useState(false);
+const [aiError, setAiError] = useState('');
+
   // Reminders State
   const [newRemTitle, setNewRemTitle] = useState('');
   const [newRemDate, setNewRemDate] = useState('');
@@ -684,7 +691,55 @@ const handleExecuteMove = () => {
       createdAt: log.created_at || log.createdAt || null
     };
   };
+// ==========================================
+// AI BEE DISEASE DETECTION
+// ==========================================
 
+const handleAiImageChange = (event) => {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  setAiImage(file);
+  setAiPreview(URL.createObjectURL(file));
+  setAiResult(null);
+  setAiError('');
+};
+
+const handleAiPrediction = async () => {
+  if (!aiImage) {
+    setAiError('Please select a bee image first.');
+    return;
+  }
+
+  setAiLoading(true);
+  setAiError('');
+  setAiResult(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('image', aiImage);
+
+    const response = await fetch('/api/ai/predict', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'AI prediction failed.');
+    }
+
+    setAiResult(data);
+  } catch (error) {
+    setAiError(
+      error.message || 'Could not analyze the bee image.'
+    );
+  } finally {
+    setAiLoading(false);
+  }
+};
   const handleAddHealthLog = async (e) => {
     e.preventDefault();
     const targetApiary = apiaries.find(a => a.locationId === logApiaryId);
@@ -2273,8 +2328,213 @@ const handleExecuteMove = () => {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            {/* ==========================================
+    AI BEE DISEASE DETECTION
+========================================== */}
+<div
+  className="form-card"
+  style={{
+    margin: 0,
+    marginBottom: '24px',
+    border: '1px solid #e5e7eb'
+  }}
+>
+  <div style={{ marginBottom: '18px' }}>
+    <h2
+      style={{
+        margin: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}
+    >
+      <Sparkles size={22} />
+      AI Bee Disease Detection
+    </h2>
+
+    <p
+      style={{
+        margin: '6px 0 0',
+        color: '#6b7280',
+        fontSize: '14px'
+      }}
+    >
+      Upload a clear image of a single bee to check for possible
+      Varroa mite infection.
+    </p>
+  </div>
+
+  {/* Image Upload */}
+  <div
+    style={{
+      border: '2px dashed #d1d5db',
+      borderRadius: '12px',
+      padding: '24px',
+      textAlign: 'center'
+    }}
+  >
+    <Camera size={32} style={{ marginBottom: '8px' }} />
+
+    <div style={{ marginBottom: '12px' }}>
+      <strong>Select Bee Image</strong>
+
+      <p
+        style={{
+          margin: '5px 0 0',
+          color: '#6b7280',
+          fontSize: '13px'
+        }}
+      >
+        JPG, PNG or WEBP • Maximum 10 MB
+      </p>
+    </div>
+
+    <input
+      type="file"
+      accept="image/jpeg,image/png,image/jpg,image/webp"
+      onChange={handleAiImageChange}
+    />
+  </div>
+
+  {/* Image Preview */}
+  {aiPreview && (
+    <div style={{ marginTop: '18px', textAlign: 'center' }}>
+      <img
+        src={aiPreview}
+        alt="Selected bee"
+        style={{
+          maxWidth: '100%',
+          maxHeight: '280px',
+          borderRadius: '12px',
+          objectFit: 'contain',
+          border: '1px solid #e5e7eb'
+        }}
+      />
+    </div>
+  )}
+
+  {/* Analyze Button */}
+  {aiImage && (
+    <button
+      type="button"
+      onClick={handleAiPrediction}
+      disabled={aiLoading}
+      className="primary-btn"
+      style={{
+        marginTop: '16px',
+        width: '100%'
+      }}
+    >
+      <Sparkles size={18} />
+
+      {aiLoading
+        ? 'Analyzing Image...'
+        : 'Analyze Bee with AI'}
+    </button>
+  )}
+
+  {/* Error */}
+  {aiError && (
+    <div
+      style={{
+        marginTop: '16px',
+        padding: '12px',
+        borderRadius: '8px',
+        background: '#fef2f2',
+        color: '#b91c1c',
+        fontSize: '14px'
+      }}
+    >
+      {aiError}
+    </div>
+  )}
+
+  {/* AI Result */}
+  {aiResult && (
+    <div
+      style={{
+        marginTop: '20px',
+        padding: '18px',
+        borderRadius: '12px',
+        background: '#f9fafb',
+        border: '1px solid #e5e7eb'
+      }}
+    >
+      <h3 style={{ marginTop: 0 }}>
+        AI Analysis Result
+      </h3>
+
+      <div
+        style={{
+          fontSize: '20px',
+          fontWeight: 700,
+          marginBottom: '8px'
+        }}
+      >
+        {aiResult.prediction}
+      </div>
+
+      <div style={{ color: '#6b7280' }}>
+        Varroa probability:{' '}
+        {(aiResult.varroaProbability * 100).toFixed(2)}%
+      </div>
+
+      <div style={{ color: '#6b7280', marginTop: '4px' }}>
+        Confidence: {aiResult.confidence.toFixed(2)}%
+      </div>
+
+      {aiResult.prediction === 'Possible Varroa' && (
+        <div
+          style={{
+            marginTop: '14px',
+            padding: '12px',
+            borderRadius: '8px',
+            background: '#fef2f2',
+            color: '#b91c1c',
+            fontSize: '14px'
+          }}
+        >
+          ⚠️ Possible Varroa detected. Further hive inspection
+          is recommended.
+        </div>
+      )}
+
+      {aiResult.prediction === 'Healthy' && (
+        <div
+          style={{
+            marginTop: '14px',
+            padding: '12px',
+            borderRadius: '8px',
+            background: '#f0fdf4',
+            color: '#166534',
+            fontSize: '14px'
+          }}
+        >
+          ✓ No Varroa indication detected in this image.
+        </div>
+      )}
+
+      {aiResult.prediction === 'Needs Inspection' && (
+        <div
+          style={{
+            marginTop: '14px',
+            padding: '12px',
+            borderRadius: '8px',
+            background: '#fffbeb',
+            color: '#92400e',
+            fontSize: '14px'
+          }}
+        >
+          ⚠️ The result is uncertain. Manual inspection is
+          recommended.
+        </div>
+      )}
+    </div>
+  )}
+</div>
+</div>
+
+         )}
 
           {/* TAB 6: REMINDERS & AGRICULTURAL TASKS */}
           {activeSubTab === 'reminders' && (

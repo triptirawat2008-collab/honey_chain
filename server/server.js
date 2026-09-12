@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import multer from "multer";
+import { spawn } from "child_process";
 import pg from "pg";
 import { ethers } from "ethers";
 
@@ -80,7 +82,22 @@ const createBatchRecordHash = ({
 // Log the resolved contract address for verification
 console.log("HoneyChain contract target:", honeyChainContract.target);
 
+// ==========================================
+// AI IMAGE UPLOAD CONFIGURATION
+// ==========================================
 
+const aiUploadDir = path.join(__dirname, "..", "ai", "uploads");
+
+if (!fs.existsSync(aiUploadDir)) {
+  fs.mkdirSync(aiUploadDir, { recursive: true });
+}
+
+const aiUpload = multer({
+  dest: aiUploadDir,
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
 const { Pool } = pg;
 
 const app = express();
@@ -2003,6 +2020,97 @@ app.get('/api/traceability/:batch_id', async (req, res) => {
 
 
 const PORT = process.env.PORT || 5000;
+// ==========================================
+// AI BEE DISEASE DETECTION
+// ==========================================
+
+app.post('/api/ai/predict', aiUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image uploaded.'
+      });
+    }
+
+    const scriptPath = path.join(
+      __dirname,
+      '..',
+      'ai',
+      'predict_image.py'
+    );
+
+    const pythonCommand =
+      process.platform === 'win32'
+        ? 'python'
+        : 'python3';
+
+    const pythonProcess = spawn(
+      pythonCommand,
+      [scriptPath, req.file.path],
+      {
+        cwd: path.join(__dirname, '..')
+      }
+    );
+
+    let output = '';
+    let errorOutput = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {}
+
+      if (code !== 0) {
+        console.error('AI Python error:', errorOutput);
+
+        return res.status(500).json({
+          success: false,
+          error: 'AI prediction failed.',
+          detail: errorOutput
+        });
+      }
+
+      try {
+        const result = JSON.parse(output.trim());
+
+        return res.json({
+          success: true,
+          ...result
+        });
+      } catch (parseError) {
+        console.error('AI output parsing error:', parseError);
+        console.error('Raw AI output:', output);
+
+        return res.status(500).json({
+          success: false,
+          error: 'Invalid response from AI model.'
+        });
+      }
+    });
+  } catch (error) {
+    console.error('AI prediction error:', error);
+
+    if (req.file?.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {}
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 app.listen(PORT, () => {
     console.log(`HoneyChain backend running on http://localhost:${PORT}`);
