@@ -435,6 +435,98 @@ app.post("/api/blockchain/batch", async (req, res) => {
         });
     }
 });
+// Sync an existing blockchain batch record into the database
+app.get('/api/blockchain/sync-batch/:batchId', async (req, res) => {
+  const { batchId } = req.params;
+
+  try {
+    if (!honeyChainContract) {
+      return res.status(500).json({
+        success: false,
+        message: 'Blockchain contract is not connected'
+      });
+    }
+
+    // Get the committed hash from blockchain
+    const onChainHash = await honeyChainContract.getBatchRecordHash(batchId);
+
+    if (!onChainHash || onChainHash === ethers.ZeroHash) {
+      return res.status(404).json({
+        success: false,
+        message: `No blockchain record found for batch ${batchId}`
+      });
+    }
+
+    // Find the BatchCreated event
+    let blockNumber = null;
+    let transactionHash = null;
+
+    try {
+      const filter = honeyChainContract.filters.BatchCreated();
+      const events = await honeyChainContract.queryFilter(
+        filter,
+        0,
+        "latest"
+      );
+
+      const matchingEvent = events
+        .slice()
+        .reverse()
+        .find(
+          (ev) =>
+            ev.args &&
+            ev.args[0] === batchId
+        );
+
+      if (matchingEvent) {
+        blockNumber = matchingEvent.blockNumber ?? null;
+        transactionHash = matchingEvent.transactionHash ?? null;
+      }
+    } catch (eventError) {
+      console.warn(
+        'Could not find BatchCreated event:',
+        eventError.message
+      );
+    }
+
+    // Save blockchain information into PostgreSQL
+    await pool.query(
+      `
+      UPDATE batches
+      SET
+        blockchain_record_hash = $1,
+        blockchain_block_number = $2,
+        blockchain_transaction_hash = $3
+      WHERE batch_id = $4
+      `,
+      [
+        onChainHash,
+        blockNumber,
+        transactionHash,
+        batchId
+      ]
+    );
+
+    return res.json({
+      success: true,
+      batchId,
+      recordHash: onChainHash,
+      blockNumber,
+      transactionHash
+    });
+
+  } catch (error) {
+    console.error(
+      'Blockchain batch sync error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 app.post("/api/blockchain/link-harvest", async (req, res) => {
     try {
         const { batchId, harvestId } = req.body;
@@ -1327,15 +1419,89 @@ app.get('/api/batches/verify/:batchId', async (req, res) => {
       });
     }
 
+    const batch = result.rows[0];
+
+    // ==========================================
+    // GET BLOCKCHAIN DATA FOR THIS BATCH
+    // ==========================================
+
+    let recordHash = null;
+    let blockNumber = null;
+    let transactionHash = null;
+
+    // Get the committed batch record hash from blockchain
+    try {
+      const onChainHash = await honeyChainContract.getBatchRecordHash(batchId);
+
+      if (onChainHash && onChainHash !== ethers.ZeroHash) {
+        recordHash = onChainHash;
+      }
+    } catch (bcError) {
+      console.warn(
+        `Could not retrieve blockchain record hash for batch ${batchId}:`,
+        bcError.shortMessage || bcError.message
+      );
+    }
+
+    // Get block number and transaction hash from BatchCreated event
+    try {
+      const filter = honeyChainContract.filters.BatchCreated();
+      const events = await honeyChainContract.queryFilter(
+        filter,
+        0,
+        "latest"
+      );
+
+      const matchingEvent = events
+        .slice()
+        .reverse()
+        .find(
+          (ev) =>
+            ev.args &&
+            ev.args[0] === batchId
+        );
+
+      if (matchingEvent) {
+        blockNumber = matchingEvent.blockNumber ?? null;
+        transactionHash = matchingEvent.transactionHash ?? null;
+      }
+    } catch (eventError) {
+      console.warn(
+        `Could not retrieve blockchain event data for batch ${batchId}:`,
+        eventError.shortMessage || eventError.message
+      );
+    }
+
+    // ==========================================
+    // RETURN BATCH + BLOCKCHAIN DATA
+    // ==========================================
+
     return res.json({
       verified: true,
-      batch: result.rows[0]
+
+      batch: {
+        ...batch,
+
+        // Blockchain information
+        recordHash,
+        blockNumber,
+        transactionHash
+      },
+
+      // Also expose these at the top level
+      // so the frontend can read them directly.
+      recordHash,
+      blockNumber,
+      transactionHash
     });
+
   } catch (error) {
     console.error('Batch verification error:', error);
+
     return res.status(500).json({
       verified: false,
-      message: 'Could not connect to the verification service.'
+      message: 'Could not connect to the verification service.',
+      error: error.message
     });
   }
 });
@@ -1349,29 +1515,159 @@ app.get('/api/trace/:traceId', async (req, res) => {
     // 1. CHECK IF TRACE ID IS A BATCH
     // ==========================================
 
-    const batchQuery = `
-      SELECT
-        b.batch_id,
-        b.company_license,
-        lr.company_name,
-        b.product_name,
-        b.quantity_kg,
-        b.created_at,
-        b.final_lab_ulr,
-        b.ulr_status,
-        b.is_lab_certified,
-        b.manual_report_certified
-      FROM batches b
-      LEFT JOIN verification.license_registry lr
-        ON lr.license_number = b.company_license
-      WHERE b.batch_id = $1
-    `;
+const batchQuery = `
+  SELECT
+    b.batch_id,
+    b.company_license,
+    lr.company_name,
+    b.product_name,
+    b.quantity_kg,
+    b.created_at,
+    b.final_lab_ulr,
+    b.ulr_status,
+    b.is_lab_certified,
+    b.manual_report_certified,
 
+    b.blockchain_record_hash,
+    b.blockchain_block_number,
+    b.blockchain_transaction_hash
+
+  FROM batches b
+
+  LEFT JOIN verification.license_registry lr
+    ON lr.license_number = b.company_license
+
+  WHERE b.batch_id = $1
+`;
     const batchRes = await pool.query(batchQuery, [traceId]);
 
     if (batchRes.rows.length > 0) {
 
       const batch = batchRes.rows[0];
+
+      // ==========================================
+// 1B. GET / SYNC BLOCKCHAIN INFORMATION
+// ==========================================
+
+let blockchainRecordHash =
+  batch.blockchain_record_hash || null;
+
+let blockchainBlockNumber =
+  batch.blockchain_block_number ?? null;
+
+let blockchainTransactionHash =
+  batch.blockchain_transaction_hash || null;
+
+// If PostgreSQL already has the blockchain values,
+// use them directly.
+//
+// Otherwise retrieve them from the blockchain
+// and save them into PostgreSQL.
+
+if (
+  !blockchainRecordHash ||
+  blockchainBlockNumber === null ||
+  !blockchainTransactionHash
+) {
+    try {
+        // --------------------------------------
+        // Get record hash from smart contract
+        // --------------------------------------
+
+        const onChainHash =
+            await honeyChainContract.getBatchRecordHash(
+                traceId
+            );
+
+        if (
+            onChainHash &&
+            onChainHash !== ethers.ZeroHash
+        ) {
+            blockchainRecordHash = onChainHash;
+        }
+
+        // --------------------------------------
+        // Get block number + transaction hash
+        // --------------------------------------
+
+        try {
+            const filter =
+                honeyChainContract.filters.BatchCreated();
+
+            const events =
+                await honeyChainContract.queryFilter(
+                    filter,
+                    0,
+                    "latest"
+                );
+
+            const matchingEvent = events
+                .slice()
+                .reverse()
+                .find(
+                    (event) =>
+                        event.args &&
+                        event.args[0] === traceId
+                );
+
+            if (matchingEvent) {
+                blockchainBlockNumber =
+                    matchingEvent.blockNumber ?? null;
+
+                blockchainTransactionHash =
+                    matchingEvent.transactionHash ?? null;
+            }
+
+        } catch (eventError) {
+            console.warn(
+                `Could not retrieve blockchain event for batch ${traceId}:`,
+                eventError.shortMessage ||
+                eventError.message
+            );
+        }
+
+        // --------------------------------------
+        // Save retrieved values to PostgreSQL
+        // --------------------------------------
+
+        if (blockchainRecordHash) {
+  const updateResult = await pool.query(`
+    UPDATE public.batches
+    SET
+      blockchain_record_hash = $1,
+      blockchain_block_number = $2,
+      blockchain_transaction_hash = $3
+    WHERE batch_id = $4
+  `, [
+    blockchainRecordHash,
+    blockchainBlockNumber,
+    blockchainTransactionHash,
+    traceId
+  ]);
+
+  console.log("Blockchain DB sync:", {
+    batchId: traceId,
+    recordHash: blockchainRecordHash,
+    blockNumber: blockchainBlockNumber,
+    transactionHash: blockchainTransactionHash,
+    rowsUpdated: updateResult.rowCount
+  });
+
+  if (updateResult.rowCount > 0) {
+    batch.blockchain_record_hash = blockchainRecordHash;
+    batch.blockchain_block_number = blockchainBlockNumber;
+    batch.blockchain_transaction_hash = blockchainTransactionHash;
+  }
+}
+
+    } catch (blockchainError) {
+        console.warn(
+            `Could not retrieve blockchain information for batch ${traceId}:`,
+            blockchainError.shortMessage ||
+            blockchainError.message
+        );
+    }
+}
 
       // ==========================================
       // 2. GET ALL HARVESTS LINKED TO THIS BATCH
@@ -1525,31 +1821,42 @@ app.get('/api/trace/:traceId', async (req, res) => {
       // ==========================================
 
       return res.json({
-        verified: true,
-        recordType: 'batch',
+  verified: true,
+  recordType: 'batch',
 
-        batch: {
-          ...batch,
-          recordHash,
-          blockNumber,
-          transactionHash
-        },
+  batch: {
+    ...batch,
 
-        recordHash,
-        blockNumber,
-        transactionHash,
+    recordHash:
+      batch.blockchain_record_hash || null,
 
-        company: {
-          company_name: batch.company_name || null,
-          company_license: batch.company_license || null
-        },
+    blockNumber:
+      batch.blockchain_block_number ?? null,
 
-        lab: companyLab,
+    transactionHash:
+      batch.blockchain_transaction_hash || null
+  },
 
-        harvests: harvests,
+  recordHash:
+    batch.blockchain_record_hash || null,
 
-        harvestLabReports: harvestLabReports
-      });
+  blockNumber:
+    batch.blockchain_block_number ?? null,
+
+  transactionHash:
+    batch.blockchain_transaction_hash || null,
+
+  company: {
+    company_name: batch.company_name || null,
+    company_license: batch.company_license || null
+  },
+
+  lab: companyLab,
+
+  harvests: harvests,
+
+  harvestLabReports: harvestLabReports
+});
     }
 
     // ==========================================
