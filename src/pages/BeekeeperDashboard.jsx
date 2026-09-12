@@ -840,7 +840,7 @@ const handleAiPrediction = async () => {
           <Hexagon size={28} fill="#E69A10" color="#D97706" strokeWidth={2.5} />
           <div>
             <span className="sidebar-logo-text">HoneyChain</span>
-            <div style={{ fontSize: '0.72rem', color: '#FEF3C7', fontWeight: 600 }}>किसान पोर्टल • Madhukranti</div>
+            <div style={{ fontSize: '0.72rem', color: '#FEF3C7', fontWeight: 600 }}>किसान पोर्टल</div>
           </div>
         </div>
 
@@ -1938,7 +1938,8 @@ const handleAiPrediction = async () => {
 
           {/* TAB 5: HEALTH LOGS & INSPECTION (With Voice Note Mock) */}
           {activeSubTab === 'health' && (
-            <div className="health-section-layout">
+            <div className="health-section-layout health-log-layout">
+              <div className="health-inspection-column">
               {/* Add Health Log Form */}
               <div className="form-card" style={{ margin: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -2068,6 +2069,74 @@ const handleAiPrediction = async () => {
                     {primaryLang === 'hi' ? 'स्वास्थ्य रिकॉर्ड सुरक्षित करें' : 'Save Health Log'}
                   </button>
                 </form>
+              </div>
+
+            {/* ==========================================
+    AI BEE DISEASE DETECTION
+========================================== */}
+<section className="ai-health-panel" aria-labelledby="ai-health-title">
+  <div className="ai-health-header">
+    <div className="ai-health-heading">
+      <div className="ai-health-icon" aria-hidden="true"><Sparkles size={20} /></div>
+      <div>
+        <p className="ai-health-eyebrow">Hive care tool</p>
+        <h2 id="ai-health-title">AI Bee Disease Detection</h2>
+        <p className="ai-health-description">Upload a bee or comb image for a quick AI health assessment and an inspection cue.</p>
+      </div>
+    </div>
+    <span className="ai-health-badge"><Activity size={14} /> AI health check</span>
+  </div>
+
+  <div className={`ai-health-workspace ${aiPreview ? 'has-preview' : ''}`}>
+    <div className="ai-upload-column">
+      <div className="ai-upload-zone">
+        {aiPreview ? (
+          <div className="ai-preview-frame">
+            <img src={aiPreview} alt="Selected bee" />
+            <label className="ai-change-image" htmlFor="ai-bee-image"><RefreshCw size={15} /> Change image</label>
+          </div>
+        ) : (
+          <>
+            <div className="ai-upload-icon" aria-hidden="true"><Camera size={25} /></div>
+            <strong>Upload a bee or hive image</strong>
+            <p>JPG, PNG or WEBP up to 10 MB</p>
+            <label className="btn btn-secondary ai-choose-button" htmlFor="ai-bee-image"><Upload size={17} /> Choose image</label>
+          </>
+        )}
+        <input id="ai-bee-image" className="ai-file-input" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" onChange={handleAiImageChange} />
+      </div>
+
+      {aiImage && (
+        <button type="button" onClick={handleAiPrediction} disabled={aiLoading} className="btn btn-primary ai-analyze-button">
+          {aiLoading ? <><RefreshCw size={18} className="ai-spinner" /> Analyzing image...</> : <><Sparkles size={18} /> Analyze with AI</>}
+        </button>
+      )}
+    </div>
+
+    {aiResult ? (
+      <div className={`ai-result-card ai-result-${aiResult.prediction === 'Healthy' ? 'healthy' : aiResult.prediction === 'Possible Varroa' ? 'varroa' : 'inspection'}`}>
+        <div className="ai-result-heading">
+          <div><p className="ai-result-label">AI result</p><h3>{aiResult.prediction}</h3></div>
+          {aiResult.prediction === 'Healthy' ? <CheckCircle2 size={27} /> : <AlertTriangle size={27} />}
+        </div>
+        <div className="ai-result-metrics">
+          <div><span>Confidence</span><strong>{aiResult.confidence.toFixed(2)}%</strong></div>
+          <div><span>Varroa probability</span><strong>{(aiResult.varroaProbability * 100).toFixed(2)}%</strong></div>
+        </div>
+        <p className="ai-result-note">
+          {aiResult.prediction === 'Possible Varroa' ? 'Possible Varroa detected. Further hive inspection is recommended.' : aiResult.prediction === 'Healthy' ? 'No Varroa indication detected in this image.' : 'The result is uncertain. Manual inspection is recommended.'}
+        </p>
+      </div>
+    ) : (
+      <div className="ai-result-empty">
+        <div className="ai-empty-mark" aria-hidden="true"><Eye size={20} /></div>
+        <div><strong>Ready for an image</strong><p>Your health assessment will appear here after analysis.</p></div>
+      </div>
+    )}
+  </div>
+
+  {aiError && <div className="ai-error" role="alert"><AlertTriangle size={17} /> {aiError}</div>}
+</section>
               </div>
 
               {/* Visual History Timeline with Combined, Manual & IoT Views */}
@@ -2328,210 +2397,6 @@ const handleAiPrediction = async () => {
                   </div>
                 )}
               </div>
-            {/* ==========================================
-    AI BEE DISEASE DETECTION
-========================================== */}
-<div
-  className="form-card"
-  style={{
-    margin: 0,
-    marginBottom: '24px',
-    border: '1px solid #e5e7eb'
-  }}
->
-  <div style={{ marginBottom: '18px' }}>
-    <h2
-      style={{
-        margin: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-      }}
-    >
-      <Sparkles size={22} />
-      AI Bee Disease Detection
-    </h2>
-
-    <p
-      style={{
-        margin: '6px 0 0',
-        color: '#6b7280',
-        fontSize: '14px'
-      }}
-    >
-      Upload a clear image of a single bee to check for possible
-      Varroa mite infection.
-    </p>
-  </div>
-
-  {/* Image Upload */}
-  <div
-    style={{
-      border: '2px dashed #d1d5db',
-      borderRadius: '12px',
-      padding: '24px',
-      textAlign: 'center'
-    }}
-  >
-    <Camera size={32} style={{ marginBottom: '8px' }} />
-
-    <div style={{ marginBottom: '12px' }}>
-      <strong>Select Bee Image</strong>
-
-      <p
-        style={{
-          margin: '5px 0 0',
-          color: '#6b7280',
-          fontSize: '13px'
-        }}
-      >
-        JPG, PNG or WEBP • Maximum 10 MB
-      </p>
-    </div>
-
-    <input
-      type="file"
-      accept="image/jpeg,image/png,image/jpg,image/webp"
-      onChange={handleAiImageChange}
-    />
-  </div>
-
-  {/* Image Preview */}
-  {aiPreview && (
-    <div style={{ marginTop: '18px', textAlign: 'center' }}>
-      <img
-        src={aiPreview}
-        alt="Selected bee"
-        style={{
-          maxWidth: '100%',
-          maxHeight: '280px',
-          borderRadius: '12px',
-          objectFit: 'contain',
-          border: '1px solid #e5e7eb'
-        }}
-      />
-    </div>
-  )}
-
-  {/* Analyze Button */}
-  {aiImage && (
-    <button
-      type="button"
-      onClick={handleAiPrediction}
-      disabled={aiLoading}
-      className="primary-btn"
-      style={{
-        marginTop: '16px',
-        width: '100%'
-      }}
-    >
-      <Sparkles size={18} />
-
-      {aiLoading
-        ? 'Analyzing Image...'
-        : 'Analyze Bee with AI'}
-    </button>
-  )}
-
-  {/* Error */}
-  {aiError && (
-    <div
-      style={{
-        marginTop: '16px',
-        padding: '12px',
-        borderRadius: '8px',
-        background: '#fef2f2',
-        color: '#b91c1c',
-        fontSize: '14px'
-      }}
-    >
-      {aiError}
-    </div>
-  )}
-
-  {/* AI Result */}
-  {aiResult && (
-    <div
-      style={{
-        marginTop: '20px',
-        padding: '18px',
-        borderRadius: '12px',
-        background: '#f9fafb',
-        border: '1px solid #e5e7eb'
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>
-        AI Analysis Result
-      </h3>
-
-      <div
-        style={{
-          fontSize: '20px',
-          fontWeight: 700,
-          marginBottom: '8px'
-        }}
-      >
-        {aiResult.prediction}
-      </div>
-
-      <div style={{ color: '#6b7280' }}>
-        Varroa probability:{' '}
-        {(aiResult.varroaProbability * 100).toFixed(2)}%
-      </div>
-
-      <div style={{ color: '#6b7280', marginTop: '4px' }}>
-        Confidence: {aiResult.confidence.toFixed(2)}%
-      </div>
-
-      {aiResult.prediction === 'Possible Varroa' && (
-        <div
-          style={{
-            marginTop: '14px',
-            padding: '12px',
-            borderRadius: '8px',
-            background: '#fef2f2',
-            color: '#b91c1c',
-            fontSize: '14px'
-          }}
-        >
-          ⚠️ Possible Varroa detected. Further hive inspection
-          is recommended.
-        </div>
-      )}
-
-      {aiResult.prediction === 'Healthy' && (
-        <div
-          style={{
-            marginTop: '14px',
-            padding: '12px',
-            borderRadius: '8px',
-            background: '#f0fdf4',
-            color: '#166534',
-            fontSize: '14px'
-          }}
-        >
-          ✓ No Varroa indication detected in this image.
-        </div>
-      )}
-
-      {aiResult.prediction === 'Needs Inspection' && (
-        <div
-          style={{
-            marginTop: '14px',
-            padding: '12px',
-            borderRadius: '8px',
-            background: '#fffbeb',
-            color: '#92400e',
-            fontSize: '14px'
-          }}
-        >
-          ⚠️ The result is uncertain. Manual inspection is
-          recommended.
-        </div>
-      )}
-    </div>
-  )}
-</div>
 </div>
 
          )}
