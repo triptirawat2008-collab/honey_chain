@@ -62,7 +62,7 @@ export default function LandingPage({ setView, setActiveTraceId, primaryLang = '
               HoneyChain
             </span>
             <span style={{ fontSize: '0.78rem', color: 'var(--color-primary-dark)', fontWeight: 700 }}>
-              {primaryLang === 'hi' ? 'हनीचेन • राष्ट्रीय शहद सत्यापन पोर्टल' : 'HoneyChain • National Honey Portal'}
+              {primaryLang === 'hi' ? 'हनीचेन • शहद सत्यापन पोर्टल' : 'HoneyChain • Honey Portal'}
             </span>
           </div>
         </div>
